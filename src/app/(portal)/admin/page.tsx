@@ -1,0 +1,32 @@
+'use client';
+
+import Link from 'next/link';
+import { ArrowRight, ArrowUpRight, Box, Building2, CircleDollarSign, Crown, FileText, Sparkles } from 'lucide-react';
+import { PageHeading, StatCard, TierBadge } from '@/components/ui';
+import { getLoyaltySummaryForCustomer } from '@/lib/domain/loyalty';
+import { formatUZS } from '@/lib/domain/pricing';
+import { getSalesOpportunities } from '@/lib/domain/opportunities';
+import { usePortal } from '@/components/portal-context';
+
+export default function AdminDashboardPage() {
+  const { config, allOrders, allCustomers } = usePortal();
+  const delivered = allOrders.filter((order) => order.status === 'Yetkazildi');
+  const monthlySales = allCustomers.reduce((sum, customer) => sum + customer.currentTurnover, 0);
+  const monthBoxes = allCustomers.reduce((sum, customer) => sum + customer.currentBoxes, 0);
+  const opportunities = getSalesOpportunities(allCustomers, config, new Date('2026-09-28'));
+  const nearTier = opportunities.filter((item) => item.progress && item.type !== 'TIER_DOWNGRADE_RISK').slice(0, 5);
+  const tierCounts = config.tiers.filter((tier) => tier.active).map((tier) => {
+    const count = allCustomers.filter((customer) => getLoyaltySummaryForCustomer(customer, config).currentTier.id === tier.id).length;
+    return { tier, count, percent: Math.round(count / allCustomers.length * 100) };
+  });
+  const top = allCustomers.slice().sort((a, b) => b.currentTurnover - a.currentTurnover).slice(0, 5);
+  const bars = [46, 56, 49, 70, 62, 77, 68, 90, 75, 82, 67, 94];
+
+  return <>
+    <PageHeading eyebrow="HAMKORLIK ANALITIKASI" title="Boshqaruv paneli" description="B2B mijozlar faolligi va sodiqlik dasturi bo‘yicha umumiy ko‘rinish." actions={<Link href="/admin/loyalty" className="button secondary"><Sparkles size={16} /> Dastur sozlamalari</Link>} />
+    <div className="admin-data-notice"><span className="demo-dot" /><span><b>Demo ma’lumotlar</b> · Ko‘rsatkichlar namuna uchun yaratilgan. MoySklad sinxronizatsiyasi ulanmagan.</span><Link href="/admin/clients">Mijozlarni ko‘rish <ArrowRight size={14} /></Link></div>
+    <div className="stat-grid four admin-stats"><StatCard label="Faol B2B mijozlar" value={`${allCustomers.filter((customer) => customer.active).length}`} note="Jami ro‘yxatdan o‘tganlar" icon={<Building2 size={18} />} tone="mint" /><StatCard label="Joriy oy savdosi" value={formatUZS(monthlySales)} note={<><ArrowUpRight size={13} /> 8.4% o‘tgan oyga nisbatan</>} icon={<CircleDollarSign size={18} />} tone="blue" /><StatCard label="Sotilgan qutilar" value={`${monthBoxes.toLocaleString('uz-UZ')}`} note="Joriy hisob-kitob davri" icon={<Box size={18} />} tone="amber" /><StatCard label="Yetkazilgan buyurtmalar" value={String(delivered.length)} note="Joriy demo dataset" icon={<FileText size={18} />} tone="violet" /></div>
+    <div className="admin-grid"><section className="surface admin-sales-chart"><div className="section-header"><div><div className="section-kicker">SAVDO DINAMIKASI</div><h3>Oylik B2B aylanmasi</h3></div><span className="period-chip">Oxirgi 12 oy</span></div><div className="admin-chart-total"><b>{formatUZS(monthlySales)}</b><span className="trend-positive"><ArrowUpRight size={14} /> 8.4%</span></div><div className="admin-bars">{bars.map((height, index) => <div key={index} className="admin-bar-column"><span className={index === 11 ? 'active' : ''} style={{ height: `${height}%` }} /><small>{['Okt', 'Noy', 'Dek', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen'][index]}</small></div>)}</div></section><section className="surface tier-distribution"><div className="section-header"><div><div className="section-kicker">MIJOZLAR TAQSIMOTI</div><h3>Sodiqlik darajalari</h3></div><Link href="/admin/clients" className="icon-link" aria-label="Mijozlarni ko‘rish"><ArrowRight size={16} /></Link></div><div className="tier-distribution-bar">{tierCounts.map(({ tier, percent }) => <span key={tier.id} style={{ width: `${percent}%`, backgroundColor: tier.color }} />)}</div><div className="tier-distribution-list">{tierCounts.map(({ tier, count, percent }) => <Link href={`/admin/clients?tier=${tier.id}`} key={tier.id} className="tier-distribution-item"><span className="tier-dot" style={{ background: tier.color }} /><TierBadge tier={tier} /><span>{count} <small>({percent}%)</small></span></Link>)}</div></section></div>
+    <div className="admin-grid lower-admin-grid"><section className="surface opportunity-table-card"><div className="section-header"><div><div className="section-kicker">SAVDO IMKONIYATLARI</div><h3>Keyingi darajaga yaqin mijozlar</h3><p>Birgalikda qo‘shimcha qiymat yaratish imkoniyati.</p></div><Link href="/admin/opportunities" className="text-link">Barchasi <ArrowRight size={14} /></Link></div><div className="near-client-list">{nearTier.map((item) => { const summary = getLoyaltySummaryForCustomer(item.customer, config); return <Link href={`/admin/clients/${item.customer.id}`} className="near-client-row" key={`${item.customer.id}-${item.type}`}><span className="near-client-avatar">{item.customer.name.slice(0, 1)}</span><span className="near-client-name"><b>{item.customer.name}</b><small>{item.customer.region}</small></span><span className="near-client-progress"><span>{config.metric === 'boxes' ? `${summary.currentValue} / ${summary.nextThreshold} quti` : `${formatUZS(summary.currentValue)} / ${formatUZS(summary.nextThreshold ?? 0)}`}</span><i><b style={{ width: `${summary.progressPercent}%` }} /></i></span><TierBadge tier={summary.currentTier} /><span className="near-client-remaining">{config.metric === 'boxes' ? `${summary.remaining} quti` : formatUZS(summary.remaining)} <small>→ {summary.nextTier?.name}</small></span><ArrowRight size={15} className="near-client-arrow" /></Link>; })}</div></section><section className="surface top-clients-card"><div className="section-header"><div><div className="section-kicker">HAMKORLAR</div><h3>Top mijozlar</h3></div><Crown size={17} className="crown-icon" /></div><div className="top-client-list">{top.map((customer, index) => { const summary = getLoyaltySummaryForCustomer(customer, config); return <Link href={`/admin/clients/${customer.id}`} key={customer.id} className="top-client-row"><span className={`rank-number rank-${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className="top-client-info"><b>{customer.name}</b><small>{customer.region}</small></span><TierBadge tier={summary.currentTier} /><strong>{formatUZS(customer.currentTurnover)}</strong></Link>; })}</div></section></div>
+  </>;
+}
