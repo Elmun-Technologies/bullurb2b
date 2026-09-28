@@ -1,0 +1,463 @@
+# ShopFlow Backend — Tashqi loyihalarga ulash bo'yicha to'liq qo'llanma
+
+> Bu hujjatni o'z loyihangizdagi AI agentga, dasturchiga yoki jamoaga shunday
+> holda bering — barcha kerakli ma'lumot (base URL, auth, barcha endpointlar,
+> tip shakllari, xato formatlar, xavfsizlik qoidalari) shu faylda yig'ilgan.
+> Hammasi ShopFlow manba kodidan tekshirilgan.
+
+---
+
+## 1. Loyiha nima? — Qisqacha tahlil
+
+**ShopFlow** — multi-tenant (ko'p do'konli) e-commerce CRM backend'i.
+Bitta serverda ko'plab do'konlarni (tenant) izolyatsiya qilib saqlaydi; har biri
+o'z mahsulot, buyurtma, mijoz, kanal va foydalanuvchilariga ega.
+
+**Backend stack:** Fastify 5 + TypeScript + Prisma 5 + PostgreSQL 16. Zod
+validatsiya, Argon2 parol, JWT. Frontend (React admin panel)dan **butunlay
+mustaqil** ishlaydi — sizga faqat `backend/` kerak, o'z frontend'ingizni qo'yib
+tashlayapsiz.
+
+**Ma'lumot modeli (55+ jadval):** Tenant, User, Category, Product
+(+ ProductVariant — o'lcham/rang), Order (+ OrderItem + OrderNote), Customer
+(+ manzillar, wishlist), Lead, Channel, PromoCode, SaleCampaign, Review,
+ProductAddon (combo/upsell), Delivery (zona/usul/kuryer/GPS trek), Loyalty,
+WebhookEvent, OutboundWebhook, ApiKey va h.k.
+
+**Backend'da bor imkoniyatlar:**
+- Mahsulot katalogi: kategoriya, variant, ombor (stock), narx pog'onalari (B2B), slug
+- Buyurtmalar pipeline: PENDING → PROCESSING → COMPLETED/CANCELLED/REFUNDED
+- Lid CRM (har qanday sizning saytingizdan webhook orqali lid qabul qiladi)
+- Mijozlar bazasi + RFM segmentlar + loyalty ball
+- To'lovlar: Click / Payme / Uzum webhook'lari (backend tayyor)
+- Integratsiyalar: MoySklad, 1C, Eskiz SMS, Telegram bot + Mini App
+- Chiquvchi webhook'lar (HMAC-SHA256 imzo bilan) — buyurtma/lid eventlari
+- Real-time: SSE stream + Web Push admin uchun
+- Public API v1 (API kalit, barqaror versiyalangan kontrakt) ← **sizga keragi shu**
+
+---
+
+## 2. Qaysi ulanish yo'lini tanlash?
+
+ShopFlow'da 3 xil API turkumi bor. Maqsadingizga qarab birini tanlang:
+
+| Yo'l | Qaysi vazifa uchun | Auth | Base URL |
+|---|---|---|---|
+| **A. Public API v1** (TAVSIYA) | Tashqi **mijoz-sayti/frontend**: katalog, mahsulot, buyurtma yaratish | `sf_...` API kalit (Bearer) | `https://<domain>/api/v1` |
+| B. Admin JWT API | O'z **admin panel**ingiz yoki server-to-server pull (to'liq CRUD: mahsulot yaratish, status o'zgartirish, hisobotlar...) | JWT access token | `https://<domain>/api/...` |
+| C. Storefront API | Auth'siz **ochiq katalog** (faqat o'qish, slug bo'yicha) | Auth yo'q | `https://<domain>/api/storefront/:slug` |
+
+> **Odatiy javob:** oddiy e-commerce frontend qurayapsizmi → **Yo'l A**.
+> Uning kontrakti versiyalangan va o'zgarmaydi (v1). B va C faqat kerak bo'lsa.
+
+---
+
+## 3. Yo'l A — Public API v1 (to'liq kontrakt)
+
+### 3.0. Umumiy qoidalar (barchasi majburiy)
+
+| | |
+|---|---|
+| **Base URL** | `https://<SIZNING_DOMAIN>/api/v1` |
+| **Auth** | Har so'rov: header `Authorization: Bearer <API_KEY>` (`sf_` bilan boshlanadi) |
+| **Til** | GET'larda `?locale=uz\|ru\|en`. Matn bitta string bo'lib qaytadi. Default `uz` |
+| **Pul** | Butun son, so'm (UZS), kasrsiz. `currency` doim `"UZS"` |
+| **Rasmlar** | `images[].url` — absolyut HTTPS URL (host + `/uploads/...`) |
+| **Kesh** | GET javoblari `Cache-Control: public, max-age=300` — 5 daqiqa keshasa bo'ladi. `POST /orders` keshlanmaydi |
+| **Rate limit** | **IP bo'yicha 300 so'rov/daqiqa**. Ortiqcha → `429 {"error":"Juda ko'p so'rov..."}` |
+| **Health** | `GET /api/health` → `{"status":"ok","db":"ok","ts":"..."}` (auth'siz) |
+
+**API kalit olish (2 usul, birini tanlang):**
+
+1. Admin panel → **Sozlamalar → API** tab → yangi kalit (rol OWNER/ADMIN).
+2. Serverda CLI:
+```bash
+cd backend && npm run create-api-key -- <tenant-slug> "Sayt front"  # [--expires-days=365]
+```
+Kalit `sf_<56 hex>` ko'rinishida **faqat bir marta** chiqadi. DB da faqat
+hash saqlanadi — yo'qotsangiz, yangisini yarating, eskisini o'chiring.
+
+**⚠️ XAVFSIZLIK (eng muhim qoida):** bu kalit bilan tenant mahsulotlari o'qiladi
+va **istalgan odam buyurtma yaratishi mumkin** — shuning uchun:
+- Kalitni **frontend (brauzer) kodiga QO'YMANG**. Faqat o'z backend'ingiz
+  (Next.js server, Node BFF, serverless function...) da `.env` da saqlang
+  va frontend → sizning proxy → ShopFlow deb chaqiring.
+- Brauzerdan to'g'ridan-to'g'ri chaqirishga majbur bo'lsangiz, `CORS_ORIGIN`
+  env'iga frontend domain'ingizni qo'shing va kalit oshkor bo'lishini qabul qiling.
+
+### 3.1. `GET /categories` → `Category[]`
+
+```bash
+curl -H "Authorization: Bearer $KEY" "$BASE/categories?locale=uz"
+```
+```ts
+interface Category {
+  id: string; slug: string; name: string;
+  description?: string;
+  image?: string;        // absolyut HTTPS
+  productCount?: number; // faol mahsulotlar soni
+}
+```
+
+### 3.2. `GET /products` → paginatsiyali ro'yxat
+
+Query parametrlar (barchasi ixtiyoriy):
+
+| Param | Qiymat | Izoh |
+|---|---|---|
+| `locale` | `uz\|ru\|en` | default `uz` |
+| `category` | kategoriya **slug** | mavjud bo'lmagan slug → `items: []` (xato emas) |
+| `search` | string (≤100) | nom bo'yicha qidiruv |
+| `origin` | string (≤60) | ishlab chiqarilgan davlat |
+| `minPrice` / `maxPrice` | number | narx oralig'i, so'm |
+| `sort` | `popular` (default) / `price_asc` / `price_desc` / `new` | |
+| `page` / `pageSize` | number | default `1`/`20`, max `pageSize=100` |
+
+Javob: `{ items: Product[], total: number, page: number, pageSize: number }`.
+`total` — filtrdan keyingi, sahifadan oldingi umumiy son (pagination UI uchun).
+Ro'yxatda har item to'liq `Product`, lekin `reviews: []` bo'ladi
+(sharhlar faqat bittalik endpoint'da).
+
+### 3.3. `GET /products/:slug` → to'liq `Product` (404 mumkin)
+
+`:slug` o'rniga `id` ham berish mumkin (fallback).
+
+```ts
+interface Product {
+  id: string; slug: string; name: string; tagline: string; description: string;
+  categoryId: string | null; categorySlug: string | null;
+  price: number; oldPrice?: number; currency: string;
+  rating: number;        // 0..5
+  reviewCount: number;
+  inStock: boolean;
+  images: { url: string; alt: string }[];
+  highlights: string[];
+  benefits: { icon?: string; title: string; description: string }[];
+  ingredients: { name: string; amount: string; dailyValue?: string }[];
+  howToUse: string;
+  faq: { question: string; answer: string }[];
+  reviews: { author: string; rating: number; date: string; text: string }[];
+  badges: string[];      // faol aksiya yorliqlari
+  servings?: number; origin?: string; bespoke: boolean;
+
+  // Variantlar (o'lcham/rang). Yo'q bo'lsa ikkalasi ham []
+  options: { id: string; name: string; values: { id: string; label: string }[] }[];
+  variants: {
+    id: string; sku: string; name: string;
+    options: Record<string, string>;   // { "hajm": "1kg" }
+    price: number; oldPrice?: number; inStock: boolean;
+    images: { url: string; alt: string }[];   // bo'sh → mahsulot rasmlari
+    attributes: { label: string; value: string }[];
+  }[];   // narx o'sish tartibida
+
+  priceTiers: { minQty: number; price: number }[];  // B2B ulgurji narx (bo'sh — [])
+  moq: number | null;   // minimal buyurtma miqdori
+  unit: "kg" | "l" | "dona" | null;
+}
+```
+
+**Variant qoidası:** `variants` bo'sh bo'lmasa → mahsulot bir necha o'lchamda
+sotiladi. Yuqoridagi `price` = eng arzon variant narxi ("... dan"). Buyurtma
+yaratishda `items[].variantId` **MAJBURIY** (`Product.variants[].id`).
+
+### 3.4. `GET /products/:productId/upsells` → `UpsellOffer[]`
+
+Cross-sell ("bularni ham qo'shing"). Bu endpointda **id** ishlatiladi, slug emas.
+```ts
+interface UpsellOffer { product: Product; discountPercent: number; reason: string; }
+```
+
+### 3.5. `GET /promotions` → `Promotion[]`
+
+```ts
+interface Promotion {
+  id: string;
+  type: "free_shipping_over" | "percent_off" | "buy_x_get_y";
+  title: string; description: string;
+  threshold?: number;  // free_shipping_over
+  percent?: number;    // percent_off (hozircha qo'llab-quvvatlanmaydi)
+}
+```
+
+### 3.6. `POST /orders` — buyurtma yaratish
+
+```ts
+interface OrderRequest {
+  customer: { name: string; phone: string };                        // majburiy
+  delivery: {
+    region?: string; address?: string; note?: string;
+    method: "courier" | "pickup";                                   // pickup → yetkazish 0
+  };
+  items: {
+    productId?: string;   // yoki slug — bittasi bo'lishi shart
+    slug?: string;
+    variantId?: string;   // variantli mahsulotda MAJBURIY
+    quantity: number;     // int > 0
+    name?: string; unitPrice?: number;   // e'tiborga olinmaydi/dekorativ
+  }[];  // min 1
+  appliedUpsells?: string[];      // productId'lar → combo chegirmasi
+  appliedPromotions?: string[];   // promotion id'lar
+  totals?: { subtotal?; discount?; shipping?: number; total? };  // shippinggina hurmat qilinadi
+  locale?: string;
+  attribution?: { utmSource?; utmMedium?; utmCampaign?; landing?; referrer? };
+}
+```
+
+**Muvaffaqiyat:** `201 { "ok": true, "orderId": "ckxx...", "message": "Buyurtma #ORD-7524 qabul qilindi" }`
+
+Server qanday ishlaydi (mijozga ishonish mumkin bo'lgan garazntiyalar):
+1. **Narxlarni qayta hisoblaydi** — siz yuborgan narx ishlatilmaydi (xavfsizlik).
+2. Mijozni telefon bo'yicha topadi yoki yaratadi; buyurtma WEBSITE kanaliga bog'lanadi.
+3. Free-shipping chegarasini tekshiradi (subtotal ≥ chegara → shipping 0).
+4. Stock'ni **atomik** kamaytiradi (transaksiya).
+5. Admin panelga real-time signal (SSE + push) va `order.created` webhook o'tadi.
+
+**Xato javoblar:**
+| Kod | Qachon | Javob |
+|---|---|---|
+| 400 | Birorta itemda na `productId` na `slug` yo'q | `{ok:false, message:"Har bir item'da productId yoki slug bo'lishi shart"}` |
+| 400 | Mahsulot topilmadi | `{ok:false, message:"Mahsulot topilmadi: ..."}` |
+| 400 | variantId kerak | `{ok:false, message:"...variantId bo'lishi shart", variants:[{id,name}...]}` — UI'da tanlagi oching |
+| 409 | Stock yetarli emas | `{ok:false, message:"...yetarli emas (mavjud: N)"}` |
+| 409 | To'lov vaqtida tugab qoldi | `{ok:false, message:"Mahsulot zaxiradan tugadi"}` |
+
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  "$BASE/orders" -d '{
+    "customer": {"name":"Ali","phone":"+998901234567"},
+    "delivery": {"region":"Toshkent","address":"Chilonzor 5","method":"courier"},
+    "items": [{"productId":"ckxx...","quantity":2}],
+    "attribution": {"utmSource":"google","utmCampaign":"spring"}
+  }'
+```
+
+### 3.7. Umumiy xato formatlari (barcha endpointlar)
+
+- `401 {"error":"API kalit talab qilinadi..."}` / `{"error":"Yaroqsiz API kalit"}` / `{"error":"API kalit muddati tugagan"}`
+- `404 {"error":"..."}`
+- `400 {"error":"Validation error","details":[{"path":"items.0.quantity","message":"..."}]}` (Zod)
+- `429 {"error":"Juda ko'p so'rov. Biroz kutib turing."}`
+
+---
+
+## 4. Yo'l B — Admin JWT API (to'liq boshqaruv)
+
+Mahsulot yaratish/tahrirlash, buyurtma statusini o'zgartirish, mijozlar, hisobot
+kabi **yozuv/boshqaruv** operatsiyalari uchun.
+
+**Login:** `POST /api/auth/login`
+```json
+{ "email": "admin@example.com", "password": "...", "tenantSlug": "demo" }
+```
+Javob:
+```json
+{ "token": "<JWT>", "refreshToken": "<raw>", "expiresIn": 900,
+  "user": {"id","email","name","role"},
+  "tenant": {"id","slug","name","currency", ...} }
+```
+- Access token: **15 daqiqa**. Har so'rov: `Authorization: Bearer <JWT>`.
+- Yangilash: `POST /api/auth/refresh` body `{ "refreshToken": "..." }` → `{token, expiresIn:900}` (refresh token 30 kun yashaydi).
+- Chiqish: `POST /api/auth/logout` `{refreshToken}`.
+- Bir email bir necha tenant'da bo'lsa `409 {"error":"Bir nechta tenant topildi","tenants":[{slug,name}...]}` — `tenantSlug` yuborib takrorlang.
+- Rollar: `OWNER > ADMIN > MANAGER > AGENT` — ko'p yozuv endpointlari `MANAGER+`,
+  sozlamalar API-kalitlar `OWNER/ADMIN`, mahsulot o'chirish `OWNER/ADMIN`.
+
+**Asosiy resurslar (prefiks → fayl):**
+
+| Prefiks | Endpointlar |
+|---|---|
+| `/api/auth` | register, login, google, refresh, logout, GET/PATCH me |
+| `/api/products` | GET ro'yxat, POST yaratish, PATCH/DELETE :id, bulk import, `GET /:id/addons` + `PUT .../addons` (combo) |
+| `/api/categories` | GET, POST, PATCH :id, DELETE :id |
+| `/api/orders` | GET ro'yxat/:id, POST, PATCH :id (status...), `GET/POST/DELETE /:id/notes[...]` |
+| `/api/leads` | GET ro'yxat/:id/stats, POST, PATCH, DELETE, `POST /:id/interactions` |
+| `/api/customers` | GET ro'yxat/:id/rfm, POST, PATCH, DELETE |
+| `/api/channels` | CRUD + telegram diagnose/toggle |
+| `/api/dashboard` | kpis, revenue-trend, weekly-sales, top-products, traffic-sources, sales-by-category, recent-orders, daily-sales, geography, funnel, customer-segments, sidebar-counts |
+| `/api/settings` | notifications, **api-keys CRUD**, profile, users CRUD |
+| `/api/promo-codes` | CRUD |
+| `/api/sale-campaigns` | CRUD |
+| `/api/reviews` | GET, PATCH (moderatsiya), DELETE |
+| `/api/delivery` | zones, methods, orders, stats |
+| `/api/logistics` | xodimlar, vehicles, kurerlar, dispatch |
+| `/api/export` | `orders.csv`, `customers.csv`, `products.csv` |
+| `/api/reports` | status, send-now, verify (email hisobotlar) |
+| `/api/upload` | POST rasm yuklash (multipart, ≤8MB) |
+| `/api/outbound-webhooks` | CRUD + `POST /:id/test` |
+| `/api/events/stream` | SSE real-time (order.created va h.k.) |
+| `/api/segments` | mijoz segmentlari CRUD |
+| `/api/moysklad`, `/api/1c`, `/api/salesdoctor` | integratsiyalar |
+| `/api/storefront` | Yo'l C (quyida) |
+
+---
+
+## 5. Yo'l C — Storefront API (auth'siz katalog)
+
+Telegram Mini App uchun yaratilgan, lekin har qanday ommaviy sahifadan ham
+foydalansa bo'ladi (mahsulot o'qish):
+
+- `GET /api/storefront/:tenantSlug?page=1&limit=100&categoryId=&q=` —
+  do'kon + mahsulotlar + kategoriyalar + reyting + "7 kunda X ta buyurtma"
+  social proof (auth talab qilmaydi, tenant slug yetadi)
+- `POST /api/storefront/:tenantSlug/checkout` — buyurtma (body: customer{name,phone,email?,address?,lat?,lng?}, items[{productId,variantId?,qty}], promoCode?, paymentMethod?, language:uz|ru) — promo kod + Click/Payme link ham qaytarishi mumkin
+- `GET /api/storefront/:tenantSlug/payment-methods` — faol to'lov usullari
+- Profile/orders/wishlist/addresses/reviews/referral endpointlari Telegram `initData` auth talab qiladi (faqat Mini App ichida ishlaydi) — tashqi frontendda ishlatmang.
+
+> Tavsiya: barqaror kontrakt kerak bo'lsa Yo'l A; bu yo'l tez prototip/testsiz sahifalar uchun.
+
+---
+
+## 6. Webhook'lar (ikki yo'nalish)
+
+### 6.1. Kiruvchi: Sizning saytingizdan ShopFlow'ga lid tushirish
+
+Admin panelda kanal yarating → unga unikal `webhookKey` beriladi:
+```
+POST /api/webhooks/lead/:webhookKey
+Content-Type: application/json
+{ "name": "Aliyor", "phone": "+998...", "email": "", "company": "",
+  "location": "", "notes": "", "value": 500000,
+  "utmSource": "", "utmMedium": "", "utmCampaign": "", "tags": ["vip"] }
+```
+Javob: `201 { "id": "...", "code": "LID-2025001" }`. HTML `<form>` bilan ham
+ishlaydi (URL-encoded). Telegram bot uchun alohida endpoint bor:
+`POST /api/webhooks/telegram/:webhookKey` (BotFather `setWebhook` ga shu URL).
+
+### 6.2. Chiquvchi: ShopFlow'dan sizning serveringizga event
+
+Admin panel / `POST /api/outbound-webhooks` (JWT, OWNER/ADMIN) bilan ro'yxatdan
+o'tkazing: `{ url, events: [...], secret? }`.
+
+Eventlar: `order.created`, `order.status_changed`, `order.paid`, `lead.created`.
+
+Har POST:
+```
+Headers:
+  X-ShopFlow-Event: order.created
+  X-ShopFlow-Signature: sha256=<hex>     (maxfiy `secret` kiritilgan bo'lsa)
+  Content-Type: application/json
+Body:
+  { "event": "order.created", "tenantId": "...", "timestamp": "ISO",
+    "data": { ...order/lead/tipga xos obyekt... } }
+```
+`order.created` payload: `data.order = { id, code, total, currency, status, source }`.
+
+**Imzo tekshiruvi (Node.js):**
+```js
+import { createHmac, timingSafeEqual } from "crypto";
+function verifyShopflowWebhook(rawBody /* Buffer|string */, secret, sigHeader) {
+  const sig = createHmac("sha256", secret).update(rawBody).digest("hex");
+  const expected = `sha256=${sig}`;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(sigHeader || ""));
+}
+// Muhim: RAW body'ni imzolashdan oldin string qilib oling (JSON.parse'dan oldin!)
+```
+
+---
+
+## 7. Backend'ni nollardan ishga tushirish (deploy)
+
+**Eng oson yo'l — Docker Compose** (repo'da hammasi tayyor):
+
+```bash
+# 1) .env yaratish (root'dagi .env.example asosida). Minimal majburiy:
+#    DOMAIN / EMAIL / PUBLIC_URL          — sizning domeningiz
+#    POSTGRES_PASSWORD                    — kuchli parol
+#    JWT_SECRET                           — openssl rand -hex 32 (≥32 belgi!)
+#    SEED_EMAIL / SEED_PASSWORD           — birinchi admin login/parol
+#    CORS_ORIGIN                          — admin-frontend domain (masalan https://dom.uz)
+docker compose up -d postgres
+docker compose up -d --build          # postgres+backend+frontend+caddy
+docker compose exec backend npm run seed    # birinchi tenant + admin yaratadi
+docker compose exec backend npm run create-api-key -- <tenant-slug> "MyFrontend"
+#   → konsolda sf_... kalit chiqadi — UNI SAQLANG
+```
+
+**Birlashgan hayot:** local dev'da faqat backend ham yetarli:
+```bash
+cd backend
+cat > .env <<'EOF'
+DATABASE_URL=postgresql://shopflow:parol@localhost:5432/shopflow
+JWT_SECRET=<openssl rand -hex 32 natijasi>
+PORT=4000
+HOST=0.0.0.0
+EOF
+npm install && npx prisma migrate deploy && npm run seed && npm run dev
+# → http://localhost:4000/api/health
+```
+
+Production valiymelar:
+- `JWT_SECRET ≥ 32 belgi` bo'lmasa backend **start olmaydi** (xato tashlaydi).
+- Production'da `DATABASE_URL`, `CORS_ORIGIN` majburiy.
+- Backend port: `4000`. Caddy `/api/*` ni unga, qolganini nginx (React)ga proxy qiladi.
+- Rasm fayllar: `POST /api/upload` (multipart) → `/uploads/<name>.<ext>` URL.
+
+## 8. O'z loyihangiz uchun tayyor minimal client
+
+O'z backend'ingiz (BFF)ga qo'ying — frontend shunga murojaat qiladi:
+
+```ts
+// shopflow.ts — server tomonda, .env: SHOPFLOW_API_URL, SHOPFLOW_API_KEY
+const BASE = process.env.SHOPFLOW_API_URL!;   // masalan https://shop.uz/api/v1
+const KEY  = process.env.SHOPFLOW_API_KEY!;
+
+async function sf<T>(path: string, init: RequestInit = {}, retry = 1): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json", ...(init.headers ?? {}) },
+    next: init.method && init.method !== "GET" ? undefined : { revalidate: 300 }, // Next.js kesh
+  });
+  if (res.status === 429 && retry > 0) {                 // rate limit — 1s kutib qayta
+    await new Promise(r => setTimeout(r, 1000));
+    return sf<T>(path, init, retry - 1);
+  }
+  if (!res.ok) throw new Error(`ShopFlow ${res.status}: ${JSON.stringify(await res.json().catch(() => ({})))}`);
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  categories: (locale = "uz") => sf<any[]>(`/categories?locale=${locale}`),
+  products:   (q: Record<string, string | number> = {}) =>
+    sf<{ items: any[]; total: number; page: number; pageSize: number }>(`/products?${new URLSearchParams(q as any)}`),
+  product:    (slug: string, locale = "uz") => sf<any>(`/products/${slug}?locale=${locale}`),
+  upsells:    (id: string) => sf<any[]>(`/products/${id}/upsells`),
+  promotions: () => sf<any[]>(`/promotions`),
+  createOrder: (body: Record<string, unknown>) =>
+    sf<{ ok: boolean; orderId?: string; message?: string; variants?: {id:string;name:string}[] }>(
+      `/orders`, { method: "POST", body: JSON.stringify(body) }),
+};
+```
+
+## 9. "Ideal ishlashi uchun" checklist
+
+- [ ] Backend ishga tushdi: `GET https://<domain>/api/health` → `{"status":"ok"}`
+- [ ] Seed qilindi, admin panel orqali kamida 1 mahsulot + kategoriya kiritildi (active=true, stock>0)
+- [ ] API kalit olindi va **faqat server** `.env`iga qo'yildi
+- [ ] Barcha GET'larga `?locale=` qo'shildi; 300s kesh hisobga olindi
+- [ ] `POST /orders` oldidan `inStock` tekshirildi; variantli mahsulotda `variantId` tanlatildi
+- [ ] Buyurtmada `attribution` (utm) yuboriladi — analitika uchun
+- [ ] Xatoliklar boshqarildi: 400 (validatsiya/variant), 401 (kalit), 404, 409 (stock), 429 (retry)
+- [ ] Production'da `CORS_ORIGIN` ga frontend domain qo'shildi (agar brauzerdan chaqirsangiz)
+- [ ] Webhook kerak bo'lsa: outbound webhook yaratildi, HMAC tekshiriladi (raw body!), Public HTTPS URL (localhost/private IP SSRF filtrdan **otmaydi**)
+- [ ] Rate limit (300/min/IP): SSR proxy orqali chaqiring, har sahifada 10 ta parallel so'rov emas — kombinatsiyalang yoki keshlang
+
+## 10. Ma'lumotlar bazasi eskizi (asosiylar)
+
+```
+Tenant ─┬─ User (OWNER/ADMIN/MANAGER/AGENT, email+argon for password, JWT)
+        ├─ Category(Product) ─ Category
+        ├─ Product ─ ProductVariant (narx, stock, sku, variant) ── active flag
+        │          └ SaleCampaign, Review, ProductAddon (upsell)
+        ├─ Customer ─ Order ─ OrderItem (variantId, variantLabel, qty, price)
+        ├─ Channel (WEBSITE/TELEGRAM/INSTAGRAM/WHATSAPP, webhookKey)
+        ├─ Lead (LID-xxx), Order.code (ORD-8624)
+        ├─ PromoCode + PromoUsage, LoyaltyAccount/Transaction
+        ├─ DeliveryZone/Method (freeAbove — free shipping chegarasi)
+        ├─ ApiKey (keyHash, prefix, scopes, expiresAt, active)
+        └─ OutboundWebhook (url, events[], secret)
+```
+
+---
+
+**Manzil:** backend kodi `backend/src/routes/public-api.ts`, kontrakt `PUBLIC_API.md`.
+Savol bo'lsa esa, `backend/src/server.ts` da barcha route prefikslari ko'ringan.
