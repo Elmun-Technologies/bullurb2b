@@ -41,7 +41,7 @@ function policyText(stage: FollowupStage): string {
     return `${Math.round(hours / 24)} kun`;
   };
   const max = policy.maxSends >= Number.MAX_SAFE_INTEGER ? '∞' : String(policy.maxSends);
-  return `kechikish ${span(policy.delayMs)} · pauza ${span(policy.cooldownMs)} · max ${max}`;
+  return `kutish ${span(policy.delayMs)} · oraliq ${span(policy.cooldownMs)} · limit ${max}`;
 }
 
 export default async function AdminMarketingPage() {
@@ -79,7 +79,7 @@ export default async function AdminMarketingPage() {
       description="Bosqichma-bosqich follow-up’lar: yarim qolgan ro‘yxat, kutilayotgan ariza, sovigan xaridor, juma tabrigi."
     />
     {!available && (
-      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Xotira ombori ulanmagan</b> · Pilot rejimda funnel ko‘rinmaydi.</span></div>
+      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Ma’lumotlar vaqtincha ko‘rinmayapti</b> · Keyinroq qayta urinib ko‘ring.</span></div>
     )}
     <div className="stat-grid four admin-stats">
       <StatCard label="Jami chatlar" value={String(chats)} note="Ro‘yxat + arizalar" icon={<Megaphone size={18} />} tone="blue" />
@@ -104,7 +104,7 @@ export default async function AdminMarketingPage() {
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">TARIX</div><h3>So‘nggi yuborishlar</h3></div></div>
         {recent.length === 0 ? (
-          <p className="muted-text">Hali follow-up yuborilmadi. Scheduler ulangach shu yerda tarix chiqadi.</p>
+          <p className="muted-text">Hali xabar yuborilmadi. Avtomatik yuborish yoqilgach, tarix shu yerda chiqadi.</p>
         ) : (
           <div className="live-list">
             {recent.map((item, index) => (
@@ -119,8 +119,8 @@ export default async function AdminMarketingPage() {
       </section>
     </div>
     <section className="surface">
-      <div className="section-header"><div><div className="section-kicker">SOZLASH</div><h3>Scheduler</h3></div></div>
-      <p className="muted-text">Yuborish faqat tashqi cron orqali (`TELEGRAM_CRON_SECRET` bilan). Kunlik 09:00 Toshkent vaqti tavsiya etiladi; avval `dryRun=1` bilan tekshiring:</p>
+      <div className="section-header"><div><div className="section-kicker">SOZLASH</div><h3>Avtomatik yuborish</h3></div></div>
+      <p className="muted-text">Xabarlar har kuni 09:30 da avtomatik yuboriladi. Birinchi sinovni yubormasdan ko‘rish mumkin:</p>
       <p className="telegram-code-box"><code>POST https://&lt;portal-host&gt;/api/cron/telegram-followups?dryRun=1</code></p>
     </section>
   </>;

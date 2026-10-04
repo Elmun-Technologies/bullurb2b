@@ -18,7 +18,7 @@ export default function OpportunitiesPage() {
     />
     <section className="surface">
       <div className="section-header"><div><div className="section-kicker">HOLAT</div><h3>Tarix kutilmoqda</h3></div></div>
-      <p className="muted-text">Darajaga yaqinlik, faol emaslik va hajm pasayishi signallari xaridlar tarixiga qarab hisoblanadi. Hozircha namuna ballar ko‘rsatilmaydi.</p>
+      <p className="muted-text">Xaridlar tarixi ulangach, imkoniyatlar shu yerda avtomatik hisoblanadi.</p>
       <p><Link href="/admin/telegram" className="text-link">Arizalarni ko‘rish <ArrowRight size={14} /></Link></p>
     </section>
   </>;

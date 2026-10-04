@@ -1146,3 +1146,6 @@ a.live-row:hover .live-arrow { color: #2b6654; }
 .breadcrumbs strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .client-table tbody td:nth-child(4) { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 380px) { .admin-badge { display: none; } }
+.hint-details { margin-top: 8px; font-size: 11px; }
+.hint-details summary { color: #2b6654; font-weight: 650; cursor: pointer; }
+.hint-details p { margin: 6px 0 0; color: #667476; line-height: 1.6; }

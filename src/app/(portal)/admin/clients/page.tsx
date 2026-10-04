@@ -39,7 +39,7 @@ export default async function AdminClientsPage() {
       actions={<span className="client-count-chip"><Users size={15} /> {approved.length} hamkor</span>}
     />
     {!available && (
-      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Xotira ombori ulanmagan</b> · Pilot rejimda mijozlar ko‘rinmaydi.</span></div>
+      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Ma’lumotlar vaqtincha ko‘rinmayapti</b> · Keyinroq qayta urinib ko‘ring.</span></div>
     )}
     {pendingCount > 0 && (
       <div className="admin-data-notice"><span className="demo-dot" /><span><b>{pendingCount} ta ariza</b> tasdiqlanishi kutilmoqda.</span><Link href="/admin/telegram">Ko‘rish <ArrowRight size={14} /></Link></div>
@@ -66,6 +66,6 @@ export default async function AdminClientsPage() {
       {approved.length === 0 ? <div className="table-empty">Hali tasdiqlangan mijoz yo‘q. Arizalar <Link href="/admin/telegram">Telegram sahifasida</Link>.</div> : null}
       <div className="table-pagination"><span>{approved.length} hamkor</span></div>
     </section>
-    <p className="muted-text">Aylanma va daraja progressi MoySklad jonli o‘qishlari ulangach chiqadi — hozircha faqat tasdiqlangan ro‘yxat ko‘rsatiladi.</p>
+    <p className="muted-text">Aylanma va daraja keyingi bosqichda ulanadi — hozircha tasdiqlangan ro‘yxat.</p>
   </>;
 }

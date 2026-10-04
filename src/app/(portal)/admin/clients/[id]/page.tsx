@@ -61,7 +61,7 @@ export default async function ClientDetailsPage(context: { params: Promise<{ id:
       </section>
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">SODIQLIK</div><h3>Daraja progressi</h3></div></div>
-        <p className="muted-text">Aylanma, daraja va chegirma progressi MoySklad jonli o‘qishlari ulangach shu yerda chiqadi. Dastur sozlamalari: <Link href="/admin/loyalty" className="text-link">Sodiqlik darajalari</Link>.</p>
+        <p className="muted-text">Aylanma va daraja keyingi bosqichda shu yerda chiqadi. Dastur sozlamalari: <Link href="/admin/loyalty" className="text-link">Sodiqlik darajalari</Link>.</p>
         {application.location && (
           <p className="muted-text">Lokatsiya: {application.location.latitude}, {application.location.longitude}</p>
         )}

@@ -68,12 +68,12 @@ export default async function AdminDashboardPage() {
     />
 
     {!telegram.available && (
-      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Xotira ombori ulanmagan</b> · Pilot rejimda Telegram ma’lumotlari ko‘rinmaydi.</span></div>
+      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Ma’lumotlar vaqtincha ko‘rinmayapti</b> · Keyinroq qayta urinib ko‘ring.</span></div>
     )}
 
     <div className="stat-grid four admin-stats">
       <StatCard label="Kutilayotgan arizalar" value={String(telegram.pending.length)} note="Tasdiqlashni kutyapti" icon={<Clock3 size={18} />} tone="amber" />
-      <StatCard label="Tasdiqlangan mijozlar" value={String(telegram.approved.length)} note="Botda faol" icon={<Building2 size={18} />} tone="mint" />
+      <StatCard label="Tasdiqlangan mijozlar" value={String(telegram.approved.length)} note="Jami tasdiqlangan" icon={<Building2 size={18} />} tone="mint" />
       <StatCard label="Bot buyurtmalari" value={String(telegram.orders.length)} note="So‘nggi 8 ta ichida" icon={<ShoppingBag size={18} />} tone="blue" />
       <StatCard
         label="Katalog mahsulotlari"
@@ -124,9 +124,10 @@ export default async function AdminDashboardPage() {
     <div className="admin-grid">
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">DO‘KON BUYURTMALARI</div><h3>ShopFlow (Mini App savdosi)</h3></div></div>
-        {storeOrders.length === 0 ? (
-          <p className="muted-text">Hali do‘kon buyurtmasi kelmadi. ShopFlow admin → outbound webhook: bu server URLi + <b>order.created</b> + secret (<b>SHOPFLOW_WEBHOOK_SECRET</b>). Yordam: <b>SHOPFLOW_INTEGRATION.md</b>.</p>
-        ) : (
+        {storeOrders.length === 0 ? (<>
+          <p className="muted-text">Hali do‘kon buyurtmasi kelmadi. Sinov xaridi qilsangiz — shu yerda chiqadi.</p>
+          <details className="hint-details"><summary>Ulash bo‘yicha ko‘rsatma</summary><p>ShopFlow admin → outbound webhook: bu server URLi + <b>order.created</b> + secret. Batafsil: <b>SHOPFLOW_INTEGRATION.md</b>.</p></details>
+        </>) : (
           <div className="live-list">
             {storeOrders.map((item, index) => (
               <div className="live-row" key={`${item.orderId}-${index}`}>
@@ -150,7 +151,7 @@ export default async function AdminDashboardPage() {
 
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">SAVDO ANALITIKASI</div><h3>Oylik aylanma</h3></div></div>
-        <p className="muted-text">Savdo tarixi MoySklad ulangach shu yerda chiqadi. Hozircha namuna raqamlar ko‘rsatilmaydi — faqat jonli ma’lumot.</p>
+        <p className="muted-text">Savdo tarixi ulangach shu yerda avtomatik chiqadi. Hozircha bo‘sh.</p>
         <p><Link href="/admin/telegram" className="text-link">Arizalarni ko‘rish <ArrowRight size={14} /></Link></p>
       </section>
     </div>
