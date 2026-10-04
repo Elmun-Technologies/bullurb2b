@@ -1104,3 +1104,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .telegram-code-box { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px dashed #cfddd8; border-radius: 8px; background: #f7faf8; }
 .telegram-code-box code { background: none; font-size: 10px; }
 .telegram-error { color: #a2543f !important; }
+.admin-badge { display: inline-flex; align-items: center; height: 31px; padding: 0 11px; border-radius: 999px; background: #eef6f0; color: #2b6654; font-size: 10px; font-weight: 700; }
+.portal-footer .live-dot.live { background: #278362; }
+.tier-distribution-item > b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tier-distribution-item > span:last-child { white-space: nowrap; }
+.login-frame { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.login-frame .page-content { width: 100%; max-width: 380px; }
+.admin-login-wrap { display: grid; place-items: center; }
+.admin-login-card { width: 100%; padding: 28px 26px; text-align: center; }
+.admin-login-card h1 { margin: 12px 0 6px; font-size: 19px; }
+.admin-login-icon { display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto; border-radius: 12px; background: #eef6f0; color: #2b6654; }
+.admin-login-form { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; text-align: left; }
+.admin-login-form input[type="password"] { height: 40px; padding: 0 12px; border: 1px solid #e3e9e9; border-radius: 7px; font-size: 13px; color: #2b393e; outline: 0; }
+.admin-login-form input[type="password"]:focus { border-color: #bfd5ca; }
+.admin-login-error { margin: 0; padding: 9px 11px; border-radius: 7px; background: #fdf1ec; color: #a2543f; font-size: 11px; text-align: center; }
