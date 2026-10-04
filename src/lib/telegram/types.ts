@@ -222,6 +222,24 @@ export interface TelegramBotOrder {
   createdAt: string;
 }
 
+/** Client lifecycle stage for stage-based follow-ups (bot-data only, no MoySklad). */
+export type FollowupStage =
+  | 'onboarding-stalled'
+  | 'pending-review'
+  | 'pending-admin'
+  | 'approved-inactive'
+  | 'dormant-buyer'
+  | 'restart-invite'
+  | 'friday';
+
+export interface TelegramFollowupRecord {
+  chatId: TelegramChatId;
+  stage: FollowupStage;
+  sentAt: string;
+  /** Optional dedupe reference (e.g. the application chat id for admin pings). */
+  reference?: string;
+}
+
 /** Client registration application for admin approval (pilot mode). */
 export type TelegramApplicationStatus = 'pending' | 'approved' | 'rejected';
 

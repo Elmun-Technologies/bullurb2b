@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { IntegrationError } from '@/lib/providers/errors';
-import type { PendingTelegramLink, TelegramApplicationStatus, TelegramBotOrder, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramRegistrationApplication, TelegramShopState, TelegramSubscription } from './types';
+import type { PendingTelegramLink, TelegramApplicationStatus, TelegramBotOrder, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramFollowupRecord, TelegramRegistrationApplication, TelegramShopState, TelegramSubscription } from './types';
 
 /**
  * Durable storage boundary for Telegram subscriptions, linking codes and the
@@ -43,6 +43,8 @@ export interface TelegramDialogStore {
   get(chatId: TelegramChatId): Promise<TelegramDialogState | null>;
   save(dialog: TelegramDialogState): Promise<void>;
   clear(chatId: TelegramChatId): Promise<void>;
+  /** All unfinished registration dialogs (for stalled-onboarding follow-ups). */
+  listActive(): Promise<TelegramDialogState[]>;
 }
 
 export interface TelegramApplicationStore {
@@ -63,6 +65,12 @@ export interface TelegramBotOrderStore {
   listRecent(limit: number): Promise<TelegramBotOrder[]>;
 }
 
+export interface TelegramFollowupStore {
+  record(entry: TelegramFollowupRecord): Promise<void>;
+  /** Newest first, capped. */
+  listRecent(limit: number): Promise<TelegramFollowupRecord[]>;
+}
+
 export interface TelegramStores {
   subscriptions: TelegramSubscriptionStore;
   deliveryLog: TelegramDeliveryLog;
@@ -71,6 +79,7 @@ export interface TelegramStores {
   applications: TelegramApplicationStore;
   shop: TelegramShopStore;
   botOrders: TelegramBotOrderStore;
+  followups: TelegramFollowupStore;
 }
 
 export function createMemoryTelegramStores(): TelegramStores {
@@ -81,6 +90,7 @@ export function createMemoryTelegramStores(): TelegramStores {
   const applications = new Map<number, TelegramRegistrationApplication>();
   const shop = new Map<number, TelegramShopState>();
   const botOrders: TelegramBotOrder[] = [];
+  const followups: TelegramFollowupRecord[] = [];
 
   return {
     subscriptions: {
@@ -110,6 +120,7 @@ export function createMemoryTelegramStores(): TelegramStores {
       async get(chatId) { return dialogs.get(chatId) ?? null; },
       async save(dialog) { dialogs.set(dialog.chatId, { ...dialog }); },
       async clear(chatId) { dialogs.delete(chatId); },
+      async listActive() { return [...dialogs.values()]; },
     },
     applications: {
       async save(application) { applications.set(application.chatId, { ...application }); },
@@ -131,6 +142,13 @@ export function createMemoryTelegramStores(): TelegramStores {
         if (botOrders.length > 200) botOrders.splice(0, botOrders.length - 200);
       },
       async listRecent(limit) { return botOrders.slice(-Math.max(1, limit)).reverse(); },
+    },
+    followups: {
+      async record(entry) {
+        followups.push({ ...entry });
+        if (followups.length > 500) followups.splice(0, followups.length - 500);
+      },
+      async listRecent(limit) { return followups.slice(-Math.max(1, limit)).reverse(); },
     },
   };
 }
@@ -163,6 +181,7 @@ export const unconfiguredTelegramStores: TelegramStores = {
     async get() { throw unconfiguredError('dialog store'); },
     async save() { throw unconfiguredError('dialog store'); },
     async clear() { throw unconfiguredError('dialog store'); },
+    async listActive() { throw unconfiguredError('dialog store'); },
   },
   applications: {
     async save() { throw unconfiguredError('application store'); },
@@ -177,6 +196,10 @@ export const unconfiguredTelegramStores: TelegramStores = {
   botOrders: {
     async record() { throw unconfiguredError('bot order store'); },
     async listRecent() { throw unconfiguredError('bot order store'); },
+  },
+  followups: {
+    async record() { throw unconfiguredError('follow-up store'); },
+    async listRecent() { throw unconfiguredError('follow-up store'); },
   },
 };
 

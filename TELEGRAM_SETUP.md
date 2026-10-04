@@ -153,6 +153,8 @@ Telegram ──POST──> /api/telegram/webhook ──> handleTelegramUpdate �
 Shopflow auth                                                              │ one-time code (10 min)
 /scheduler/ ──GET/POST──> /api/cron/telegram-reminders ──> dispatchTelegramReminders ──> sendMessage
   (bearer auth)        (live-mode guard)            (portal rules + idempotency log)
+/scheduler/ ──GET/POST──> /api/cron/telegram-followups ──> dispatchFollowups ──> sendMessage
+  (bearer auth)        (bot-data only, dryRun=1)    (stages + cooldowns + caps)
 
 GET /api/telegram/status ──> secret-free status for the setup UI ({ disabled | unconfigured | ready })
 ```
@@ -298,7 +300,7 @@ empty `url`.
 
 ## 4. Connect the scheduler (real cron, not page views)
 
-Reminders are produced only by the authenticated scheduler endpoint —
+Reminders are produced only by the authenticated scheduler endpoints —
 visiting pages never triggers Telegram sends.
 
 ```bash
@@ -307,6 +309,34 @@ curl -s -X POST https://<portal-host>/api/cron/telegram-reminders \
   -H "authorization: Bearer ${TELEGRAM_CRON_SECRET}"
 # {"ok":true,"summary":{"subscriptions":N,"sent":M,"skippedAlreadySent":K,...}}
 ```
+
+Stage-based follow-ups (marketing v1) run on bot-collected data only — no
+MoySklad live reads needed — so this endpoint works today:
+
+| Stage | Trigger | Anti-spam |
+|---|---|---|
+| Yarim qolgan ro‘yxat | dialog stalled 24h | 72h pause, max 3 |
+| Kutilayotgan ariza | pending 24h | 72h pause, max 2 |
+| Operator pingi | pending 2h → admin chat | once per application |
+| Faollashmagan hamkor | approved 48h, 0 orders | 7d pause, max 3 |
+| Sovigan xaridor | last order 14d ago | 14d pause, max 3 |
+| Qayta taklif | rejected 10d ago | 30d pause, max 2 |
+| Juma tabrigi | approved + Friday | weekly |
+
+```bash
+# always dry-run first — previews without sending
+curl -s "https://<portal-host>/api/cron/telegram-followups?dryRun=1" \
+  -H "authorization: Bearer ${TELEGRAM_CRON_SECRET}"
+# {"ok":true,"summary":{...},"previews":[{"chatId":..,"stage":..,"text":..}]}
+
+# live run, max 25 sends (override with ?limit=N, max 100)
+curl -s -X POST https://<portal-host>/api/cron/telegram-followups \
+  -H "authorization: Bearer ${TELEGRAM_CRON_SECRET}"
+```
+
+One message per chat per run; the funnel + history live at `/admin/marketing`.
+Memory stores lose follow-up history on restart (same pilot limitation as
+dialogs) — durable stores remove that caveat.
 
 - GET and POST are both accepted (Vercel Cron uses GET).
 - Missing/wrong bearer → HTTP 401. There is no unauthenticated job path.
