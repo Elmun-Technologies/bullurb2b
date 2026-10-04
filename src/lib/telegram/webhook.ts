@@ -7,15 +7,16 @@ import type { ParsedTelegramCommand, TelegramCommand, TelegramIncomingUpdate } f
  *
  * Every webhook call must carry the `X-Telegram-Bot-Api-Secret-Token` header
  * matching the `secret_token` registered via `setWebhook`. Comparison is
- * timing-safe. Only `message` updates with text are processed — the webhook is
- * registered with `allowed_updates: ["message"]`, and anything else is
+ * timing-safe. `message` updates and `callback_query` updates (inline buttons)
+ * are processed — the webhook is registered with
+ * `allowed_updates: ["message", "callback_query"]`, and anything else is
  * ignored defensively.
  */
 
 export const TELEGRAM_WEBHOOK_SECRET_HEADER = 'x-telegram-bot-api-secret-token';
 
 /** Update types this integration subscribes to via `allowed_updates`. */
-export const TELEGRAM_ALLOWED_UPDATES = ['message'] as const;
+export const TELEGRAM_ALLOWED_UPDATES = ['message', 'callback_query'] as const;
 
 export function verifyWebhookSecret(provided: string | null | undefined, expected: string): boolean {
   if (!provided || !expected) return false;
@@ -106,9 +107,10 @@ export function parseTelegramUpdate(body: unknown): TelegramIncomingUpdate | nul
 }
 
 /**
- * Parses `/start`, `/start <payload>`, `/help`, `/stop` (with optional
- * `@botname` mention). Anything else is `unknown`. A mention for a different
- * bot is treated as unknown so group chatter for other bots is ignored.
+ * Parses `/start`, `/start <payload>`, `/help`, `/stop`, `/profil`,
+ * `/dastur`, `/katalog` (with optional `@botname` mention). Anything else is
+ * `unknown`. A mention for a different bot is treated as unknown so group
+ * chatter for other bots is ignored.
  */
 export function parseTelegramCommand(text: string, botUsername: string | null): ParsedTelegramCommand {
   const rawText = text;
@@ -120,11 +122,8 @@ export function parseTelegramCommand(text: string, botUsername: string | null): 
   const payload = firstSpace === -1 ? '' : trimmed.slice(firstSpace).trim();
 
   const [commandPart, mentionPart] = commandToken.slice(1).split('@', 2);
-  const command = (
-    commandPart === 'start' || commandPart === 'help' || commandPart === 'stop' || commandPart === 'profil' || commandPart === 'dastur'
-      ? commandPart === 'profil' ? 'profile' : commandPart === 'dastur' ? 'program' : commandPart
-      : 'unknown'
-  ) as TelegramCommand;
+  const aliases: Record<string, TelegramCommand> = { start: 'start', help: 'help', stop: 'stop', profil: 'profile', dastur: 'program', katalog: 'catalog' };
+  const command = aliases[commandPart] ?? 'unknown';
   if (command === 'unknown') return { command, payload: '', rawText };
 
   if (mentionPart !== undefined) {

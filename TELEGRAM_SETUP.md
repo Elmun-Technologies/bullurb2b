@@ -110,6 +110,12 @@ their stored data + application status, `/dastur` lists the loyalty tiers and
 discounts (static program info; personal progress needs the live MoySklad
 adapter). All three work without any external keys.
 
+`/katalog` (needs `SHOPFLOW_API_URL` + `SHOPFLOW_API_KEY`, see
+`SHOPFLOW_INTEGRATION.md`) opens the in-bot shop: categories → products →
+variant → quantity → delivery → address → confirm → real ShopFlow order, with
+the admin notified per order. Without the keys the bot honestly says the
+catalog is coming soon. `/dastur` appends live promotions when configured.
+
 ## Client test script (2–3 day pilot, copy-paste to testers)
 
 > Assalomu alaykum! Baraka B2B eslatmalar botini test qilamiz 🧪
@@ -167,8 +173,8 @@ GET /api/telegram/status ──> secret-free status for the setup UI ({ disabled
 2. Copy the bot token BotFather returns. **Treat it as a password**: server
    deployment secret only, never `NEXT_PUBLIC_*`, Git, logs or chat.
 3. Optionally `/setdescription`, `/setabouttext`, and `/setcommands`:
-   `start` (start/registration), `profil` (my data), `dastur` (tiers),
-   `help`, `stop`.
+   `start` (start/registration), `katalog` (products/orders), `profil`
+   (my data), `dastur` (tiers), `help`, `stop`.
 
 Official references: Bot API
 ([sendMessage/setWebhook](https://core.telegram.org/bots/api)),
@@ -325,11 +331,13 @@ curl -s -X POST https://<portal-host>/api/cron/telegram-reminders \
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-- 90 automated Telegram tests use a fake sender + memory stores: fail-closed
+- 108 automated Telegram tests use a fake sender + memory stores: fail-closed
   config, secret-free responses, webhook auth, linking lifecycle, phone
   onboarding (contact ownership, auto-link, self-registration, ambiguous and
   failure paths), in-bot admin review (inline buttons, guards, double-press),
-  user menu (/profil, /dastur), pilot registration (name/company/address/location steps,
+  user menu (/profil, /dastur), in-bot ShopFlow catalog + ordering (/katalog,
+  variants, MOQ, address, confirm, single-order guard, stock/401 paths, live
+  promotions), pilot registration (name/company/address/location steps,
   skip, admin approval queue + chat notifications, reject/restart), per-customer
   isolation, unsubscribe, Friday/timezone logic, 80% parity, idempotency,
   429/5xx retry with secret-free logs, mock-mode refusal; plus 13 MoySklad

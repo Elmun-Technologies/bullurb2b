@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { IntegrationError } from '@/lib/providers/errors';
-import type { PendingTelegramLink, TelegramApplicationStatus, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramRegistrationApplication, TelegramSubscription } from './types';
+import type { PendingTelegramLink, TelegramApplicationStatus, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramRegistrationApplication, TelegramShopState, TelegramSubscription } from './types';
 
 /**
  * Durable storage boundary for Telegram subscriptions, linking codes and the
@@ -51,12 +51,19 @@ export interface TelegramApplicationStore {
   listByStatus(status: TelegramApplicationStatus): Promise<TelegramRegistrationApplication[]>;
 }
 
+export interface TelegramShopStore {
+  get(chatId: TelegramChatId): Promise<TelegramShopState | null>;
+  save(state: TelegramShopState): Promise<void>;
+  clear(chatId: TelegramChatId): Promise<void>;
+}
+
 export interface TelegramStores {
   subscriptions: TelegramSubscriptionStore;
   deliveryLog: TelegramDeliveryLog;
   links: TelegramLinkStore;
   dialogs: TelegramDialogStore;
   applications: TelegramApplicationStore;
+  shop: TelegramShopStore;
 }
 
 export function createMemoryTelegramStores(): TelegramStores {
@@ -65,6 +72,7 @@ export function createMemoryTelegramStores(): TelegramStores {
   const links = new Map<string, PendingTelegramLink>();
   const dialogs = new Map<number, TelegramDialogState>();
   const applications = new Map<number, TelegramRegistrationApplication>();
+  const shop = new Map<number, TelegramShopState>();
 
   return {
     subscriptions: {
@@ -104,6 +112,11 @@ export function createMemoryTelegramStores(): TelegramStores {
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       },
     },
+    shop: {
+      async get(chatId) { return shop.get(chatId) ?? null; },
+      async save(state) { shop.set(state.chatId, { ...state }); },
+      async clear(chatId) { shop.delete(chatId); },
+    },
   };
 }
 
@@ -140,6 +153,11 @@ export const unconfiguredTelegramStores: TelegramStores = {
     async save() { throw unconfiguredError('application store'); },
     async getByChatId() { throw unconfiguredError('application store'); },
     async listByStatus() { throw unconfiguredError('application store'); },
+  },
+  shop: {
+    async get() { throw unconfiguredError('shop store'); },
+    async save() { throw unconfiguredError('shop store'); },
+    async clear() { throw unconfiguredError('shop store'); },
   },
 };
 

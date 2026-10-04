@@ -96,8 +96,8 @@ export function buildInvalidCodeMessage(locale: TelegramLocale): string {
 export function buildHelpMessage(locale: TelegramLocale): string {
   return truncateTelegramText(
     locale === 'ru'
-      ? 'Baraka B2B — бот.\n/start — начать / регистрация\n/profil — мои данные и статус\n/dastur — уровни и скидки\n/stop — отписаться\n/help — это сообщение'
-      : 'Baraka B2B — bot.\n/start — boshlash / ro‘yxatdan o‘tish\n/profil — ma’lumotlarim va holat\n/dastur — darajalar va chegirmalar\n/stop — obunani o‘chirish\n/help — ushbu yordam',
+      ? 'Baraka B2B — бот.\n/start — начать / регистрация\n/katalog — товары и заказы\n/profil — мои данные и статус\n/dastur — уровни и скидки\n/stop — отписаться\n/help — это сообщение'
+      : 'Baraka B2B — bot.\n/start — boshlash / ro‘yxatdan o‘tish\n/katalog — mahsulotlar va buyurtma\n/profil — ma’lumotlarim va holat\n/dastur — darajalar va chegirmalar\n/stop — obunani o‘chirish\n/help — ushbu yordam',
   );
 }
 
@@ -116,7 +116,7 @@ export function buildStopMessage(locale: TelegramLocale, hadSubscription: boolea
 
 export function buildUnknownCommandMessage(locale: TelegramLocale): string {
   return truncateTelegramText(
-    locale === 'ru' ? 'Неизвестная команда. Доступные команды: /start, /help, /stop.' : 'Noma’lum buyruq. Mavjud buyruqlar: /start, /help, /stop.',
+    locale === 'ru' ? 'Неизвестная команда. Доступные команды: /katalog, /start, /help, /stop.' : 'Noma’lum buyruq. Mavjud buyruqlar: /katalog, /start, /help, /stop.',
   );
 }
 
@@ -216,14 +216,6 @@ export function buildPilotAskPhoneMessage(locale: TelegramLocale): string {
   );
 }
 
-export function buildPilotRegisteredMessage(locale: TelegramLocale, phone: string): string {
-  return truncateTelegramText(
-    locale === 'ru'
-      ? `Спасибо! Номер принят: ${phone} ✅\n\n🧪 Тестовый режим: сейчас бот проверяет получение номера. Когда подключатся данные вашей компании, уровень, скидки и напоминания о заказах будут приходить в этот чат.\n\n/help — помощь, /stop — отписаться.`
-      : `Rahmat! Raqamingiz qabul qilindi: ${phone} ✅\n\n🧪 Test rejimi: hozircha bot raqam qabul qilishni sinamoqda. Kompaniya maʼlumotlaringiz ulangach, darajangiz, chegirmalaringiz va buyurtma eslatmalari shu chatga keladi.\n\n/help — yordam, /stop — obunani to‘xtatish.`,
-  );
-}
-
 export function buildPilotStatusMessage(locale: TelegramLocale, phone: string): string {
   return truncateTelegramText(
     locale === 'ru'
@@ -305,8 +297,8 @@ export function buildApplicationPendingMessage(locale: TelegramLocale, company: 
 export function buildApplicationApprovedMessage(locale: TelegramLocale, company: string): string {
   return truncateTelegramText(
     locale === 'ru'
-      ? `Поздравляем! Ваша заявка одобрена ✅\nКомпания: ${company}\n\nТеперь напоминания об уровне, скидках и заказах будут приходить в этот чат. /stop — отписаться, /help — помощь.`
-      : `Tabriklaymiz! Arizangiz tasdiqlandi ✅\nKompaniya: ${company}\n\nEndi daraja, chegirmalar va buyurtmalar haqidagi eslatmalar shu chatga keladi. /stop — obunani to‘xtatish, /help — yordam.`,
+      ? `Поздравляем! Ваша заявка одобрена ✅\nКомпания: ${company}\n\n🛒 /katalog — товары и заказы.\n/profil — мои данные, /dastur — скидки, /help — помощь.`
+      : `Tabriklaymiz! Arizangiz tasdiqlandi ✅\nKompaniya: ${company}\n\n🛒 /katalog — mahsulotlar va buyurtma.\n/profil — ma’lumotlarim, /dastur — chegirmalar, /help — yordam.`,
   );
 }
 
@@ -326,7 +318,7 @@ export function buildAdminNewApplicationMessage(
     ? `\nLokatsiya: ${input.location.latitude}, ${input.location.longitude}\nhttps://maps.google.com/?q=${input.location.latitude},${input.location.longitude}`
     : '\nLokatsiya: yuborilmadi';
   return truncateTelegramText(
-    `🆕 Yangi ariza!\n\nDo‘kon: ${input.company}\nMas’ul: ${input.name}\nTelefon: ${input.phone}\nManzil: ${input.address}${locationLine}\n\nAdmin panelda tasdiqlang: /admin/telegram`,
+    `🆕 Yangi ariza!\n\nDo‘kon: ${input.company}\nMas’ul: ${input.name}\nTelefon: ${input.phone}\nManzil: ${input.address}${locationLine}\n\nTugmalar orqali yoki panelda qaror qiling: /admin/telegram`,
   );
 }
 
@@ -361,19 +353,30 @@ export function buildProfileMessage(
   );
 }
 
-export function buildProgramMessage(locale: TelegramLocale, tiers: { name: string; minValue: number; discountPercent: number }[]): string {
+export function buildProgramMessage(
+  locale: TelegramLocale,
+  tiers: { name: string; minValue: number; discountPercent: number }[],
+  promotions?: { title: string; description: string }[],
+): string {
   const lines = tiers.map((tier) => (locale === 'ru' ? `• ${tier.name}: от ${tier.minValue} шт — скидка ${tier.discountPercent}%` : `• ${tier.name}: ${tier.minValue} qutidan — chegirma ${tier.discountPercent}%`));
+  const livePromos = (promotions ?? []).filter((promo) => promo.title.trim());
+  const promoBlock =
+    livePromos.length > 0
+      ? locale === 'ru'
+        ? `\n\n🎉 Активные акции:\n${livePromos.map((promo) => `• ${promo.title}${promo.description.trim() ? ` — ${promo.description}` : ''}`).join('\n')}`
+        : `\n\n🎉 Faol aksiyalar:\n${livePromos.map((promo) => `• ${promo.title}${promo.description.trim() ? ` — ${promo.description}` : ''}`).join('\n')}`
+      : '';
   return truncateTelegramText(
     locale === 'ru'
-      ? `🏆 Уровни лояльности\n\n${lines.join('\n')}\n\n🧪 Тестовый режим: личный прогресс появится после подключения данных.`
-      : `🏆 Sodiqlik darajalari\n\n${lines.join('\n')}\n\n🧪 Test rejimi: shaxsiy progress ma’lumotlar ulangach chiqadi.`,
+      ? `🏆 Уровни лояльности\n\n${lines.join('\n')}${promoBlock}\n\n🧪 Тестовый режим: личный прогресс появится после подключения данных.`
+      : `🏆 Sodiqlik darajalari\n\n${lines.join('\n')}${promoBlock}\n\n🧪 Test rejimi: shaxsiy progress ma’lumotlar ulangach chiqadi.`,
   );
 }
 
 export function buildApprovedMenuMessage(locale: TelegramLocale, company: string): string {
   return truncateTelegramText(
     locale === 'ru'
-      ? `С возвращением, ${company}! ✅\n\n/profil — мои данные\n/dastur — уровни и скидки\n/help — помощь\n/stop — отписаться`
-      : `Xush kelibsiz, ${company}! ✅\n\n/profil — ma’lumotlarim\n/dastur — darajalar va chegirmalar\n/help — yordam\n/stop — obunani o‘chirish`,
+      ? `С возвращением, ${company}! ✅\n\n/katalog — товары и заказы\n/profil — мои данные\n/dastur — уровни и скидки\n/help — помощь\n/stop — отписаться`
+      : `Xush kelibsiz, ${company}! ✅\n\n/katalog — mahsulotlar va buyurtma\n/profil — ma’lumotlarim\n/dastur — darajalar va chegirmalar\n/help — yordam\n/stop — obunani o‘chirish`,
   );
 }

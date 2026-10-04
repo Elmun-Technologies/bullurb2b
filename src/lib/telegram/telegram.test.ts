@@ -303,6 +303,19 @@ describe('telegram bot api client retries and error mapping', () => {
     await expect(client.editMessageText(1, 1, '  ')).rejects.toThrow(TelegramApiError);
   });
 
+  it('redraws catalog screens by editing text with a new inline keyboard', async () => {
+    const { calls, fetchImpl } = mockFetchSequence([{ status: 200, body: { ok: true, result: true } }]);
+    const client = new TelegramBotApiClient(TEST_SECRETS.botToken, { fetchImpl });
+    await client.editMessageText(777, 9, 'cats', { replyMarkup: { inline_keyboard: [[{ text: 'A', callback_data: 'sf:cat:0' }]] } });
+    expect(calls[0].url).toContain('/editMessageText');
+    expect(calls[0].payload).toMatchObject({
+      chat_id: 777,
+      message_id: 9,
+      text: 'cats',
+      reply_markup: { inline_keyboard: [[{ text: 'A', callback_data: 'sf:cat:0' }]] },
+    });
+  });
+
   it('honors 429 retry_after exactly before retrying', async () => {
     const { fetchImpl } = mockFetchSequence([
       { status: 429, body: { ok: false, error_code: 429, description: 'Too Many Requests: retry after 2', parameters: { retry_after: 2 } } },
@@ -366,11 +379,11 @@ describe('telegram bot api client retries and error mapping', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('registers webhooks with the secret token and message-only updates', async () => {
+  it('registers webhooks with the secret token and message+callback updates', async () => {
     const { calls, fetchImpl } = mockFetchSequence([{ status: 200, body: { ok: true, result: true } }]);
     const client = new TelegramBotApiClient(TEST_SECRETS.botToken, { fetchImpl });
     await client.setWebhook('https://portal.example.uz/api/telegram/webhook', { secretToken: TEST_SECRETS.webhookSecret });
     expect(calls[0].url.endsWith('/setWebhook')).toBe(true);
-    expect(calls[0].payload).toMatchObject({ secret_token: TEST_SECRETS.webhookSecret, allowed_updates: ['message'] });
+    expect(calls[0].payload).toMatchObject({ secret_token: TEST_SECRETS.webhookSecret, allowed_updates: ['message', 'callback_query'] });
   });
 });

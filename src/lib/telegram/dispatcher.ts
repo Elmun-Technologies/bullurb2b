@@ -13,7 +13,7 @@ import {
   buildOrderStatusMessage,
 } from './messages';
 import { weekKeyInTimezone } from './schedule';
-import type { TelegramChatId, TelegramLocale, TelegramReplyMarkup } from './types';
+import type { TelegramChatId, TelegramInlineKeyboardMarkup, TelegramLocale, TelegramReplyMarkup } from './types';
 import type { TelegramStores } from './stores';
 import { isChatInactiveError, type TelegramClientLogger } from './client';
 
@@ -42,7 +42,12 @@ import { isChatInactiveError, type TelegramClientLogger } from './client';
 export interface TelegramSender {
   sendMessage(chatId: TelegramChatId, text: string, options?: { replyMarkup?: TelegramReplyMarkup }): Promise<{ messageId: number }>;
   answerCallbackQuery(callbackQueryId: string, input?: { text?: string; showAlert?: boolean }): Promise<true>;
-  editMessageText(chatId: TelegramChatId | string, messageId: number, text: string): Promise<true>;
+  editMessageText(
+    chatId: TelegramChatId | string,
+    messageId: number,
+    text: string,
+    options?: { replyMarkup?: TelegramInlineKeyboardMarkup | { inline_keyboard: [] } },
+  ): Promise<true>;
 }
 
 export interface TelegramDispatchSummary {

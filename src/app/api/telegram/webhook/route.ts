@@ -5,6 +5,8 @@ import { parseTelegramUpdate, TELEGRAM_WEBHOOK_SECRET_HEADER, verifyWebhookSecre
 import { handleTelegramUpdate } from '@/lib/telegram/webhook-handler';
 import { requireMoySkladConfig } from '@/lib/moysklad/config';
 import { MoySkladClient } from '@/lib/moysklad/client';
+import { ShopFlowClient } from '@/lib/shopflow/client';
+import { requireShopFlowConfig } from '@/lib/shopflow/config';
 import type { CounterpartyDirectory } from '@/lib/telegram/onboarding';
 
 /**
@@ -44,6 +46,7 @@ export async function POST(request: Request): Promise<Response> {
     linkingSecret: requireTelegramLinkingSecret(),
     directory: buildCounterpartyDirectory(),
     adminChatId: readTelegramAdminChatId(),
+    shop: buildShopCatalog(),
   });
   return Response.json({ ok: true, action: result.action });
 }
@@ -56,6 +59,19 @@ function buildCounterpartyDirectory(): CounterpartyDirectory | null {
   try {
     const config = requireMoySkladConfig();
     return new MoySkladClient(config.baseUrl, config.token);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ShopFlow catalog backend for the in-bot shop. Null when the API URL/key
+ * are not configured — the bot then honestly reports “coming soon”.
+ */
+function buildShopCatalog(): ShopFlowClient | null {
+  try {
+    const config = requireShopFlowConfig();
+    return new ShopFlowClient(config.baseUrl, config.apiKey);
   } catch {
     return null;
   }

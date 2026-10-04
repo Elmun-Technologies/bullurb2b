@@ -85,7 +85,7 @@ export interface TelegramIncomingUpdate {
   callbackQuery?: TelegramIncomingCallbackQuery;
 }
 
-export type TelegramCommand = 'start' | 'help' | 'stop' | 'profile' | 'program' | 'unknown';
+export type TelegramCommand = 'start' | 'help' | 'stop' | 'profile' | 'program' | 'catalog' | 'unknown';
 
 export interface ParsedTelegramCommand {
   command: TelegramCommand;
@@ -126,6 +126,64 @@ export interface TelegramDialogState {
   company?: string;
   /** Shop address collected during registration. */
   address?: string;
+  updatedAt: string;
+}
+
+/** In-bot ShopFlow catalog/order flow state (one active browser per chat). */
+export type TelegramShopStep =
+  | 'browsing'
+  | 'awaiting-qty'
+  | 'awaiting-name'
+  | 'awaiting-address'
+  | 'confirm'
+  | 'placing'
+  | 'placed';
+
+export interface TelegramShopCategoryRef {
+  slug: string;
+  name: string;
+}
+
+export interface TelegramShopProductRef {
+  id: string;
+  slug: string;
+  name: string;
+  price: number;
+  oldPrice?: number;
+  inStock: boolean;
+}
+
+export interface TelegramShopSelection {
+  productId: string;
+  slug: string;
+  name: string;
+  /** Display-only unit price snapshot (ShopFlow recomputes totals server-side). */
+  unitPrice: number;
+  variantId?: string;
+  variantName?: string;
+  quantity: number;
+  unit?: 'kg' | 'l' | 'dona' | null;
+}
+
+export interface TelegramShopState {
+  chatId: TelegramChatId;
+  step: TelegramShopStep;
+  categories?: TelegramShopCategoryRef[];
+  categorySlug?: string;
+  categoryName?: string;
+  products?: TelegramShopProductRef[];
+  page: number;
+  total: number;
+  pageSize: number;
+  /** Product id shown on the detail screen (variant buttons resolve via this). */
+  viewedProductId?: string;
+  selection?: TelegramShopSelection;
+  /** Customer name fallback when no registration application exists. */
+  customerName?: string;
+  deliveryMethod?: 'courier' | 'pickup';
+  address?: string;
+  orderId?: string;
+  orderMessage?: string;
   updatedAt: string;
 }
 

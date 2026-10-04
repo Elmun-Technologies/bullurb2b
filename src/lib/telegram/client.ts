@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { TELEGRAM_MAX_TEXT_LENGTH } from './messages';
-import type { TelegramChatId, TelegramReplyMarkup } from './types';
+import type { TelegramChatId, TelegramInlineKeyboardMarkup, TelegramReplyMarkup } from './types';
 
 /**
  * Minimal Telegram Bot API client (`sendMessage`, `setWebhook`).
@@ -138,19 +138,34 @@ export class TelegramBotApiClient {
     return true;
   }
 
-  /** Replaces a message's text (used to mark admin decisions and drop buttons). */
-  async editMessageText(chatId: TelegramChatId | string, messageId: number, text: string): Promise<true> {
+  /**
+   * Replaces a message's text (used to mark admin decisions and to redraw
+   * catalog screens). Without `replyMarkup` the old inline buttons stay — pass
+   * an empty `inline_keyboard` explicitly to drop them.
+   */
+  async editMessageText(
+    chatId: TelegramChatId | string,
+    messageId: number,
+    text: string,
+    options: { replyMarkup?: TelegramInlineKeyboardMarkup | { inline_keyboard: [] } } = {},
+  ): Promise<true> {
     const normalized = text.trim();
     if (!normalized) throw new TelegramApiError('Refusing to set an empty Telegram message text.', { retryable: false, reason: 'bad-request' });
     if (normalized.length > TELEGRAM_MAX_TEXT_LENGTH) {
       throw new TelegramApiError(`Telegram message exceeds ${TELEGRAM_MAX_TEXT_LENGTH} characters.`, { retryable: false, reason: 'bad-request' });
     }
-    await this.callApi<unknown>('editMessageText', { chat_id: chatId, message_id: messageId, text: normalized, disable_web_page_preview: true });
+    await this.callApi<unknown>('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: normalized,
+      disable_web_page_preview: true,
+      ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
+    });
     return true;
   }
 
   async setWebhook(url: string, input: { secretToken: string; allowedUpdates?: string[] }): Promise<true> {
-    await this.callApi<true>('setWebhook', { url, secret_token: input.secretToken, allowed_updates: input.allowedUpdates ?? ['message'] });
+    await this.callApi<true>('setWebhook', { url, secret_token: input.secretToken, allowed_updates: input.allowedUpdates ?? ['message', 'callback_query'] });
     return true;
   }
 

@@ -43,9 +43,35 @@ versioned) plus **outbound webhooks** for order events:
   verified customer→chat mapping and durable delivery storage (same Telegram
   production blockers).
 - Order path (decided): orders are created via ShopFlow `POST /orders`, which
-  syncs them into MoySklad. The future in-bot catalog (deferred — the ShopFlow
-  cart already exists, and loyalty mixing is still undecided) must reuse this
-  path rather than writing MoySklad documents directly.
+  syncs them into MoySklad. The in-bot catalog reuses this path rather than
+  writing MoySklad documents directly.
+
+## In-bot catalog + ordering (`/katalog`)
+
+Approved Telegram clients browse and order without leaving the chat:
+categories → products (5/page) → detail (price/stock/MOQ/tiers) → variant →
+quantity (MOQ-enforced) → courier/pickup → address (or the registered one,
+skippable on pickup) → confirm → `POST /orders`. Name/phone come from the
+verified registration application; `attribution.utmSource` is `telegram-bot`;
+displayed prices are never sent back (ShopFlow recomputes totals).
+
+- Code: `src/lib/telegram/catalog.ts` (`CatalogBackend` interface — the real
+  `ShopFlowClient` in production, a fake in tests), wired in
+  `webhook-handler.ts` (`catalog` command, `sf:*` callbacks, free-text steps)
+  and `src/app/api/telegram/webhook/route.ts` (fail-closed `null` backend).
+- Gating: approved application (or MoySklad-linked binding) required;
+  pending/rejected chats get an honest status, unconfigured ShopFlow gets an
+  honest “coming soon” — no demo products, ever.
+- Safety: buttons carry `sf:<action>:<index>` (≤64 bytes), ids stay in
+  per-chat state and are revalidated per press; private-chat presser check;
+  stale buttons toast instead of acting; double-confirm places one order
+  (`placing`/`placed` guards); 409 stock messages are relayed, the cart kept
+  for retry; 401 alerts the admin chat to check the key.
+- Admin: every bot order best-effort notifies `TELEGRAM_ADMIN_CHAT_ID`.
+- `/dastur` appends live `GET /promotions` when ShopFlow is configured.
+- Needs: `SHOPFLOW_API_URL` (`https://<domain>/api/v1`, no trailing slash)
+  and `SHOPFLOW_API_KEY` (`sf_...`) as server secrets (Fly: `fly secrets set`
+  — triggers a restart, which wipes pilot memory stores).
 
 ## Deliberately NOT implemented (guide leaves these unspecified)
 

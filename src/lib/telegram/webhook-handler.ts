@@ -2,10 +2,13 @@ import 'server-only';
 
 import { DEFAULT_LOYALTY_CONFIG } from '@/lib/domain/loyalty';
 import { IntegrationError } from '@/lib/providers/errors';
+import type { ShopFlowPromotion } from '@/lib/shopflow/types';
 import { decideApplication } from './admin';
+import { beginCatalog, getShopAccess, handleShopCallback, handleShopText, type CatalogBackend, type ShopContext } from './catalog';
 import {
   buildAdminDecidedMessage,
   buildApplicationPendingMessage,
+  buildApplicationRejectedMessage,
   buildApprovedMenuMessage,
   buildHelpMessage,
   buildInvalidCodeMessage,
@@ -71,6 +74,8 @@ export type WebhookAction =
   | 'application-submitted'
   | 'profile'
   | 'program'
+  | 'catalog'
+  | 'shop-callback'
   | 'admin-approved'
   | 'admin-rejected'
   | 'callback-ignored'
@@ -93,6 +98,8 @@ export interface WebhookHandleInput {
   directory?: CounterpartyDirectory | null;
   /** Optional admin chat id for new-application notifications. */
   adminChatId?: string | null;
+  /** ShopFlow catalog backend; when null, the catalog honestly reports “coming soon”. */
+  shop?: CatalogBackend | null;
   now?: Date;
   logger?: TelegramClientLogger;
 }
@@ -133,6 +140,7 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
       ? createOnboardingContext({ stores: input.stores, sender: input.sender, directory: input.directory, now, logger })
       : null;
     const pilot = createPilotContext({ stores: input.stores, sender: input.sender, now, logger, adminChatId: input.adminChatId ?? null });
+    const shopContext: ShopContext = { stores: input.stores, sender: input.sender, shop: input.shop ?? null, adminChatId: input.adminChatId ?? null, now, logger };
 
     // Contact shares (phone onboarding).
     if (message.contact) {
@@ -172,6 +180,20 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
     }
 
     const parsed = parseTelegramCommand(text ?? '', input.botUsername);
+
+    // Shop-flow free-text steps (quantity / name / address) take precedence
+    // over registration dialogs; real commands and link codes still win.
+    const shopState = await input.stores.shop.get(chatId);
+    if (
+      shopState &&
+      (shopState.step === 'awaiting-qty' || shopState.step === 'awaiting-name' || shopState.step === 'awaiting-address') &&
+      parsed.command === 'unknown' &&
+      text &&
+      !isPlausibleLinkCode(text)
+    ) {
+      await handleShopText(shopContext, chatId, text, locale);
+      return { action: 'catalog', chatId, replied: true };
+    }
 
     // Registration dialog free-text steps take precedence over unknown text.
     // Pilot-linked chats (verified phone, no customer yet) stay in the dialog
@@ -239,6 +261,7 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
       case 'stop': {
         try {
           await input.stores.dialogs.clear(chatId);
+          await input.stores.shop.clear(chatId);
         } catch {
           // Best effort: unsubscribing must work even if dialog cleanup fails.
         }
@@ -285,8 +308,37 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
         const tiers = DEFAULT_LOYALTY_CONFIG.tiers
           .filter((tier) => tier.active)
           .map((tier) => ({ name: tier.name, minValue: tier.minValue, discountPercent: tier.discountPercent }));
-        await input.sender.sendMessage(chatId, buildProgramMessage(locale, tiers));
+        let promotions: ShopFlowPromotion[] | undefined;
+        if (shopContext.shop) {
+          try {
+            promotions = await shopContext.shop.promotions();
+          } catch (error) {
+            logger.warn(`telegram.program promotions failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+          }
+        }
+        await input.sender.sendMessage(chatId, buildProgramMessage(locale, tiers, promotions));
         return { action: 'program', chatId, replied: true };
+      }
+      case 'catalog': {
+        const access = await getShopAccess(input.stores, chatId);
+        if (access.allowed) {
+          await beginCatalog(shopContext, chatId, locale);
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (access.reason === 'pending') {
+          await input.sender.sendMessage(chatId, buildApplicationPendingMessage(locale, access.application?.company ?? ''));
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (access.reason === 'rejected') {
+          await input.sender.sendMessage(chatId, buildApplicationRejectedMessage(locale));
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (onboarding) {
+          const action = await beginPhoneOnboarding(onboarding, chatId, locale);
+          return { action, chatId, replied: true };
+        }
+        const pilotAction = await beginPilotOnboarding(pilot, chatId, locale);
+        return { action: pilotAction, chatId, replied: true };
       }
       default: {
         if (existing) {
@@ -327,6 +379,28 @@ async function handleCallbackQuery(
   now: Date,
   logger: TelegramClientLogger,
 ): Promise<WebhookHandleResult> {
+  // Catalog/order buttons (`sf:*`) are served for the private-chat owner;
+  // admin review buttons (`app:*`) follow below with their own guard.
+  if (query.data === 'sf:' || query.data.startsWith('sf:')) {
+    try {
+      const subscription = await input.stores.subscriptions.getByChatId(query.chatId);
+      const locale: TelegramLocale = subscription?.locale === 'ru' ? 'ru' : 'uz';
+      await handleShopCallback(
+        { stores: input.stores, sender: input.sender, shop: input.shop ?? null, adminChatId: input.adminChatId ?? null, now, logger },
+        query,
+        locale,
+      );
+    } catch (error) {
+      logger.error(`telegram.shop callback failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+      try {
+        await input.sender.answerCallbackQuery(query.id, { text: 'Xatolik, keyinroq urinib ko‘ring.' });
+      } catch {
+        // Best effort only.
+      }
+    }
+    return { action: 'shop-callback', chatId: query.chatId, replied: true };
+  }
+
   const adminChatId = input.adminChatId ?? null;
   // The admin chat may be a DM (presser == chat) or a group (presser is a
   // member, chat == group): either match authorizes. Without a configured
@@ -424,6 +498,7 @@ async function linkChat(
   });
   try {
     await input.stores.dialogs.clear(chatId);
+    await input.stores.shop.clear(chatId);
   } catch {
     logger.warn(`telegram.webhook linked chat ${chatId} but could not clear its dialog state`);
   }
