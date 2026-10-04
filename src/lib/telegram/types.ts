@@ -95,10 +95,20 @@ export interface ParsedTelegramCommand {
 }
 
 /** Reply keyboard (`request_contact`) and keyboard removal markups. */
+export interface TelegramReplyKeyboardButton {
+  text: string;
+  request_contact?: boolean;
+  request_location?: boolean;
+  /** Mini App button (opens a Web App inside Telegram). */
+  web_app?: { url: string };
+}
+
 export interface TelegramReplyKeyboardMarkup {
-  keyboard: { text: string; request_contact?: boolean; request_location?: boolean }[][];
+  keyboard: TelegramReplyKeyboardButton[][];
   resize_keyboard?: boolean;
   one_time_keyboard?: boolean;
+  /** Keeps the menu visible until replaced or removed. */
+  is_persistent?: boolean;
 }
 
 export interface TelegramReplyKeyboardRemove {
@@ -194,6 +204,22 @@ export interface TelegramShopState {
   orderId?: string;
   orderMessage?: string;
   updatedAt: string;
+}
+
+/** Bot-placed ShopFlow order log entry (pilot memory; powers the admin ops view). */
+export interface TelegramBotOrder {
+  orderId: string;
+  orderMessage: string;
+  chatId: TelegramChatId;
+  company: string;
+  name: string;
+  phone: string;
+  productName: string;
+  variantName?: string;
+  quantity: number;
+  method: 'courier' | 'pickup';
+  address?: string;
+  createdAt: string;
 }
 
 /** Client registration application for admin approval (pilot mode). */

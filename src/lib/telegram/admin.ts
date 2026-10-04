@@ -4,7 +4,7 @@ import {
   buildApplicationApprovedMessage,
   buildApplicationRejectedMessage,
 } from './messages';
-import { buildMainMenuKeyboard } from './menu';
+import { buildPersistentMenuKeyboard } from './menu';
 import type { TelegramSender } from './dispatcher';
 import type { TelegramStores } from './stores';
 import type { TelegramChatId, TelegramRegistrationApplication } from './types';
@@ -59,7 +59,7 @@ export async function decideApplication(
   try {
     if (decision === 'approved') {
       await sender.sendMessage(chatId, buildApplicationApprovedMessage(application.locale, application.company), {
-        replyMarkup: buildMainMenuKeyboard(application.locale, options.storefrontUrl ?? null),
+        replyMarkup: buildPersistentMenuKeyboard(application.locale, options.storefrontUrl ?? null),
       });
     } else {
       await sender.sendMessage(chatId, buildApplicationRejectedMessage(application.locale, reason || undefined));

@@ -35,7 +35,8 @@
 - [x] One-time short-lived account linking bound to verified principals only (hash-persisted codes, demo switcher never trusted).
 - [x] Authenticated scheduler endpoint + dispatcher reusing portal Friday/80%-gap/order/opportunity rules, Uzbek + Russian texts, per-chat idempotency and weekly cadence caps.
 - [x] Mock-mode refusal: demo records can never be delivered to real chats; integration reports `disabled/unconfigured` without full configuration.
-- [x] 118 automated Telegram tests (config fail-closed, secret-free responses, webhook auth, linking, phone onboarding, pilot registration + admin approval queue + in-bot review + user menu + main menu buttons + in-bot ShopFlow catalog/ordering + Mini App storefront + upgrade path, isolation, unsubscribe, timezones, loyalty parity, idempotency, retries) and `TELEGRAM_SETUP.md` operator docs.
+- [x] 121 automated Telegram tests (config fail-closed, secret-free responses, webhook auth, linking, phone onboarding, pilot registration + admin approval queue + in-bot review + user menu + persistent bottom menu + in-bot ShopFlow catalog/ordering + Mini App storefront + upgrade path, isolation, unsubscribe, timezones, loyalty parity, idempotency, retries) and `TELEGRAM_SETUP.md` operator docs.
+- [x] Admin operations dashboard is 100% live data (pending/approved applications, bot order log, ShopFlow catalog counts, integration statuses; honest placeholder for sales analytics instead of demo numbers).
 
 ## ShopFlow Public API v1 (verified subset implemented)
 - [x] Server-only v1 client (categories, products, product, promotions, upsells, createOrder, health) with Bearer auth, locale validation, 429 retry and bounded 5xx/network backoff.
@@ -44,6 +45,7 @@
 - [x] In-bot catalog + ordering (`/katalog` for approved chats: categories → products → variant → MOQ quantity → courier/pickup → address → confirm → `POST /orders`, admin notified; fail-closed “coming soon”, single-order guard, live promos in `/dastur`).
 - [x] Mini App storefront (`/katalog` opens `SHOPFLOW_STOREFRONT_URL` via a `web_app` button; button catalog stays as fallback; BotFather `/newapp` + Menu button; bot token never shared with ShopFlow).
 - [x] Main menu buttons (`/menu`, `/start` for approved, attached to approval: shop / points+discounts / profile / help with back navigation; stateless; commands stay as fallback).
+- [x] Persistent bottom menu (Telegram reply keyboard: shop opens the Mini App directly, label-text screens for the rest; bot order log powers the admin view).
 - [x] 20 automated ShopFlow tests (config, validation, client retries/errors, HMAC, routes) and rewritten `SHOPFLOW_INTEGRATION.md` from the verified guide.
 
 ## Verification

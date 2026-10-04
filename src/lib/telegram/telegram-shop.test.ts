@@ -5,7 +5,7 @@ import type { ShopFlowCategory, ShopFlowOrderRequest, ShopFlowProduct, ShopFlowP
 import type { TelegramSender } from './dispatcher';
 import { decideApplication } from './admin';
 import { buildApplicationApprovedMessage, buildHelpMessage } from './messages';
-import { buildMainMenuKeyboard, buildMainMenuMessage } from './menu';
+import { buildMainMenuKeyboard, buildMainMenuMessage, parseMenuButtonText } from './menu';
 import { createMemoryTelegramStores, resetMemoryTelegramStores, type TelegramStores } from './stores';
 import type { CatalogBackend } from './catalog';
 import { parseTelegramCommand, TELEGRAM_ALLOWED_UPDATES } from './webhook';
@@ -269,8 +269,13 @@ describe('storefront mini app', () => {
   });
 });
 
+function replyRows(markup: TelegramReplyMarkup | undefined): string[] {
+  if (!markup || !('keyboard' in markup)) return [];
+  return markup.keyboard.flat().map((button) => button.text);
+}
+
 describe('main menu', () => {
-  it('/menu sends buttons with the Mini App store on top', async () => {
+  it('/menu sends the persistent bottom keyboard with the Mini App store', async () => {
     const stores = createMemoryTelegramStores();
     await seedApproved(stores);
     const { shop } = makeShop();
@@ -278,21 +283,54 @@ describe('main menu', () => {
     await handle(stores, sender, msg('/menu'), shop, STOREFRONT_URL);
     expect(sent).toHaveLength(1);
     expect(sent[0].text).toContain('Ali Market');
-    const rows = sent[0].replyMarkup && 'inline_keyboard' in sent[0].replyMarkup ? sent[0].replyMarkup.inline_keyboard : [];
-    expect(rows).toHaveLength(4);
-    expect(rows[0][0]).toMatchObject({ web_app: { url: STOREFRONT_URL } });
-    expect(rows[0][0].text).toContain('Mahsulotlarni');
-    expect(datas(sent[0].replyMarkup)).toEqual(['menu:points', 'menu:profile', 'menu:help']);
+    const markup = sent[0].replyMarkup;
+    expect(markup && 'keyboard' in markup ? markup.is_persistent : false).toBe(true);
+    expect(replyRows(markup)).toEqual(['🛒 Mahsulotlar', '⭐ Balim', '👤 Profilim', 'ℹ️ Yordam']);
+    const shopButton = markup && 'keyboard' in markup ? markup.keyboard[0][0] : null;
+    expect(shopButton).toMatchObject({ web_app: { url: STOREFRONT_URL } });
   });
 
-  it('/start shows the menu for approved chats', async () => {
+  it('/start shows the bottom menu for approved chats', async () => {
     const stores = createMemoryTelegramStores();
     await seedApproved(stores);
     const { shop } = makeShop();
     const { sender, sent } = makeSender();
     const result = await handle(stores, sender, msg('/start'), shop, STOREFRONT_URL);
     expect(result.action).toBe('enabled');
-    expect(datas(sent[0].replyMarkup)).toContain('menu:profile');
+    expect(replyRows(sent[0].replyMarkup)).toContain('⭐ Balim');
+  });
+
+  it('answers bottom-menu button texts with the matching screen', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(stores, sender, msg('⭐ Balim'), shop, STOREFRONT_URL);
+    expect(sent[0].text).toContain('Sodiqlik darajalari');
+    expect(sent[0].text).toContain('Bepul yetkazish');
+    await handle(stores, sender, msg('👤 Profilim'), shop);
+    expect(sent[1].text).toContain('Ali Market');
+    await handle(stores, sender, msg('ℹ️ Yordam'), shop);
+    expect(sent[2].text).toContain('/menu');
+    await handle(stores, sender, msg('🛒 Mahsulotlar'), shop, STOREFRONT_URL);
+    const markup = sent[3].replyMarkup;
+    expect(markup && 'inline_keyboard' in markup ? markup.inline_keyboard[0][0] : null).toMatchObject({ web_app: { url: STOREFRONT_URL } });
+  });
+
+  it('opens the button catalog from the shop label without a storefront url', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(stores, sender, msg('🛒 Mahsulotlar'), shop, null);
+    expect(datas(sent[0].replyMarkup)).toEqual(['sf:cat:0', 'sf:cat:1']);
+  });
+
+  it('parses menu labels in both locales', () => {
+    expect(parseMenuButtonText('⭐ Balim')).toBe('points');
+    expect(parseMenuButtonText('🛒 Товары')).toBe('shop');
+    expect(parseMenuButtonText('salom')).toBeNull();
+    expect(parseMenuButtonText('/menu')).toBeNull();
   });
 
   it('gates /menu like the catalog', async () => {
@@ -325,7 +363,7 @@ describe('main menu', () => {
     expect(edited[2].text).toContain('/menu');
 
     await handle(stores, sender, cb('menu:main'), shop, STOREFRONT_URL);
-    expect(edited[3].text).toContain('Asosiy menyu');
+    expect(edited[3].text).toContain('Pastdagi menyudan');
     expect(await stores.shop.get(CHAT_ID)).toBeNull();
   });
 
@@ -344,16 +382,18 @@ describe('main menu', () => {
     expect(answered2[0].text).toContain('/start');
   });
 
-  it('attaches the menu to the approval notification', async () => {
+  it('attaches the bottom menu to the approval notification', async () => {
     const stores = createMemoryTelegramStores();
     await stores.subscriptions.save({ chatId: CHAT_ID, subjectId: `pilot-phone:${PHONE}`, role: 'CLIENT', phone: PHONE, locale: 'uz', active: true, linkedAt: NOW.toISOString() });
     await stores.applications.save({ chatId: CHAT_ID, phone: PHONE, name: 'Ali', company: 'Ali Market', address: 'M', status: 'pending', locale: 'uz', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() });
     const { sender, sent } = makeSender();
     const result = await decideApplication(stores, sender, CHAT_ID, 'approved', undefined, NOW, { storefrontUrl: STOREFRONT_URL });
     expect(result.ok).toBe(true);
-    const rows = sent[0].replyMarkup && 'inline_keyboard' in sent[0].replyMarkup ? sent[0].replyMarkup.inline_keyboard : [];
-    expect(rows[0][0]).toMatchObject({ web_app: { url: STOREFRONT_URL } });
-    expect(datas(sent[0].replyMarkup)).toContain('menu:points');
+    const markup = sent[0].replyMarkup;
+    expect(markup && 'keyboard' in markup ? markup.is_persistent : false).toBe(true);
+    expect(replyRows(markup)).toContain('🛒 Mahsulotlar');
+    const shopButton = markup && 'keyboard' in markup ? markup.keyboard[0][0] : null;
+    expect(shopButton).toMatchObject({ web_app: { url: STOREFRONT_URL } });
   });
 });
 
@@ -441,6 +481,10 @@ describe('ordering (simple product)', () => {
     const adminMsg = sent.find((item) => item.chatId === Number(ADMIN_CHAT_ID));
     expect(adminMsg?.text).toContain('Yangi buyurtma');
     expect(adminMsg?.text).toContain('Ali Market');
+
+    const logged = await stores.botOrders.listRecent(5);
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ orderId: 'ord-1', company: 'Ali Market', productName: 'Cola 1L', quantity: 2, method: 'courier' });
 
     // Double-pressing confirm places no second order.
     await handle(stores, sender, cb('sf:ok', { messageId }), shop);

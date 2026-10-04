@@ -937,6 +937,25 @@ async function placeOrder(
   try {
     const result = await context.shop.createOrder(orderBody);
     await context.stores.shop.save({ ...state, step: 'placed', orderId: result.orderId, orderMessage: result.message, updatedAt: context.now.toISOString() });
+    try {
+      await context.stores.botOrders.record({
+        orderId: result.orderId,
+        orderMessage: result.message,
+        chatId,
+        company: application?.company ?? '—',
+        name: name.trim(),
+        phone,
+        productName: selection.name,
+        ...(selection.variantName ? { variantName: selection.variantName } : {}),
+        quantity: selection.quantity,
+        method,
+        ...(state.address?.trim() ? { address: state.address.trim() } : {}),
+        createdAt: context.now.toISOString(),
+      });
+    } catch (error) {
+      // Log-only: the order already exists at ShopFlow; the local log is ops-only.
+      context.logger.warn(`telegram.shop order log failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
     await editBotScreen(context.sender, chatId, query.messageId, buildOrderSuccessMessage(locale, result.message), backToCatalogKeyboard(locale));
     context.logger.info(`telegram.shop order placed for chat ${chatId}: ${result.orderId}`);
     await notifyAdminOfOrder(context, { application, name: name.trim(), phone, selection, method, address: state.address, orderMessage: result.message });

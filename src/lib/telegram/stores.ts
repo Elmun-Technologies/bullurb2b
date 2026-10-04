@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { IntegrationError } from '@/lib/providers/errors';
-import type { PendingTelegramLink, TelegramApplicationStatus, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramRegistrationApplication, TelegramShopState, TelegramSubscription } from './types';
+import type { PendingTelegramLink, TelegramApplicationStatus, TelegramBotOrder, TelegramChatId, TelegramDeliveryRecord, TelegramDialogState, TelegramRegistrationApplication, TelegramShopState, TelegramSubscription } from './types';
 
 /**
  * Durable storage boundary for Telegram subscriptions, linking codes and the
@@ -57,6 +57,12 @@ export interface TelegramShopStore {
   clear(chatId: TelegramChatId): Promise<void>;
 }
 
+export interface TelegramBotOrderStore {
+  record(order: TelegramBotOrder): Promise<void>;
+  /** Newest first, capped. */
+  listRecent(limit: number): Promise<TelegramBotOrder[]>;
+}
+
 export interface TelegramStores {
   subscriptions: TelegramSubscriptionStore;
   deliveryLog: TelegramDeliveryLog;
@@ -64,6 +70,7 @@ export interface TelegramStores {
   dialogs: TelegramDialogStore;
   applications: TelegramApplicationStore;
   shop: TelegramShopStore;
+  botOrders: TelegramBotOrderStore;
 }
 
 export function createMemoryTelegramStores(): TelegramStores {
@@ -73,6 +80,7 @@ export function createMemoryTelegramStores(): TelegramStores {
   const dialogs = new Map<number, TelegramDialogState>();
   const applications = new Map<number, TelegramRegistrationApplication>();
   const shop = new Map<number, TelegramShopState>();
+  const botOrders: TelegramBotOrder[] = [];
 
   return {
     subscriptions: {
@@ -117,6 +125,13 @@ export function createMemoryTelegramStores(): TelegramStores {
       async save(state) { shop.set(state.chatId, { ...state }); },
       async clear(chatId) { shop.delete(chatId); },
     },
+    botOrders: {
+      async record(order) {
+        botOrders.push({ ...order });
+        if (botOrders.length > 200) botOrders.splice(0, botOrders.length - 200);
+      },
+      async listRecent(limit) { return botOrders.slice(-Math.max(1, limit)).reverse(); },
+    },
   };
 }
 
@@ -158,6 +173,10 @@ export const unconfiguredTelegramStores: TelegramStores = {
     async get() { throw unconfiguredError('shop store'); },
     async save() { throw unconfiguredError('shop store'); },
     async clear() { throw unconfiguredError('shop store'); },
+  },
+  botOrders: {
+    async record() { throw unconfiguredError('bot order store'); },
+    async listRecent() { throw unconfiguredError('bot order store'); },
   },
 };
 

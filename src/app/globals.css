@@ -561,6 +561,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .admin-data-notice { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 11px; margin: -3px 0 13px; border: 1px solid #efe9dc; border-radius: 6px; color: #95856a; background: #fcfaf5; font-size: 8px; }
 .admin-data-notice .demo-dot { width: 6px; height: 6px; box-shadow: none; }
 .admin-data-notice b { color: #7f6e4e; }
+.muted-text { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .admin-data-notice a { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; color: #806e4e; font-weight: 650; white-space: nowrap; }
 .admin-stats { margin-top: 0; }
 .admin-grid { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(270px,.9fr); gap: 13px; margin-bottom: 13px; }

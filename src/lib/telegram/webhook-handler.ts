@@ -5,7 +5,7 @@ import { IntegrationError } from '@/lib/providers/errors';
 import type { ShopFlowPromotion } from '@/lib/shopflow/types';
 import { decideApplication } from './admin';
 import { beginCatalog, getShopAccess, handleShopCallback, handleShopText, type CatalogBackend, type ShopContext } from './catalog';
-import { handleMenuCallback, sendMainMenu } from './menu';
+import { handleMenuCallback, handleMenuText, parseMenuButtonText, sendMainMenu } from './menu';
 import {
   buildAdminDecidedMessage,
   buildApplicationPendingMessage,
@@ -182,6 +182,13 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
     }
 
     const parsed = parseTelegramCommand(text ?? '', input.botUsername);
+
+    // Bottom-menu buttons send their label as plain text and always work.
+    const menuAction = text && parsed.command === 'unknown' ? parseMenuButtonText(text) : null;
+    if (menuAction) {
+      await handleMenuText(shopContext, chatId, menuAction, locale);
+      return { action: 'catalog', chatId, replied: true };
+    }
 
     // Shop-flow free-text steps (quantity / name / address) take precedence
     // over registration dialogs; real commands and link codes still win.

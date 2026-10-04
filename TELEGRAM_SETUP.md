@@ -105,12 +105,13 @@ the buttons — production should restrict this to listed admin user ids.
 
 ## User menu (post-registration)
 
-Approved users get a main menu of inline buttons (also on `/menu` and
-attached to the approval message): 🛒 shop (Mini App store, button-catalog
-fallback), ⭐ points + discounts (tiers + live promotions; personal balance
-needs purchase history), 👤 profile (stored data + status), ℹ️ help. The menu
-is stateless and needs no keys; `/profil`, `/dastur`, `/katalog` stay as
-command fallbacks.
+Approved users get Telegram's own persistent bottom keyboard (also on
+`/menu` and attached to the approval message): 🛒 shop opens the Mini App
+store directly (`web_app`; button-catalog fallback without the storefront
+URL), ⭐ points + discounts (tiers + live promotions; personal balance needs
+purchase history), 👤 profile (stored data + status), ℹ️ help. Menu buttons
+send label text; old inline menus keep working. `/profil`, `/dastur`,
+`/katalog` stay as command fallbacks.
 
 `/katalog` (needs ShopFlow keys, see `SHOPFLOW_INTEGRATION.md`) opens the
 Mini App store (`SHOPFLOW_STOREFRONT_URL`) inside Telegram, with a
@@ -338,7 +339,7 @@ curl -s -X POST https://<portal-host>/api/cron/telegram-reminders \
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-- 118 automated Telegram tests use a fake sender + memory stores: fail-closed
+- 121 automated Telegram tests use a fake sender + memory stores: fail-closed
   config, secret-free responses, webhook auth, linking lifecycle, phone
   onboarding (contact ownership, auto-link, self-registration, ambiguous and
   failure paths), in-bot admin review (inline buttons, guards, double-press),

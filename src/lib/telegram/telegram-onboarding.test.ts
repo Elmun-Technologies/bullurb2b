@@ -724,7 +724,7 @@ describe('telegram user menu', () => {
     expect((await handle(stores, sender, textUpdate('/start'), null)).action).toBe('enabled');
     const last = sent[sent.length - 1];
     expect(last.text).toContain('BARAKA SAVDO');
-    const rows = last.replyMarkup && 'inline_keyboard' in last.replyMarkup ? last.replyMarkup.inline_keyboard : [];
-    expect(rows.flat().map((button) => button.callback_data)).toContain('menu:profile');
+    const rows = last.replyMarkup && 'keyboard' in last.replyMarkup ? last.replyMarkup.keyboard : [];
+    expect(rows.flat().map((button) => button.text)).toContain('⭐ Balim');
   });
 });
