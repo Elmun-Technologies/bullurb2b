@@ -34,12 +34,14 @@ const STAGE_ORDER: FollowupStage[] = [
 function policyText(stage: FollowupStage): string {
   const policy = FOLLOWUP_POLICIES[stage];
   const span = (ms: number) => {
-    if (!Number.isFinite(ms)) return 'bir marta';
+    if (ms >= Number.MAX_SAFE_INTEGER) return '—';
+    if (ms <= 0) return 'yo‘q';
     const hours = Math.round(ms / 3_600_000);
     if (hours < 24) return `${hours} soat`;
     return `${Math.round(hours / 24)} kun`;
   };
-  return `kechikish ${span(policy.delayMs)} · pauza ${span(policy.cooldownMs)} · max ${Number.isFinite(policy.maxSends) ? policy.maxSends : '∞'}`;
+  const max = policy.maxSends >= Number.MAX_SAFE_INTEGER ? '∞' : String(policy.maxSends);
+  return `kechikish ${span(policy.delayMs)} · pauza ${span(policy.cooldownMs)} · max ${max}`;
 }
 
 export default async function AdminMarketingPage() {
@@ -49,10 +51,12 @@ export default async function AdminMarketingPage() {
   let eligible = 0;
   let recent: Awaited<ReturnType<ReturnType<typeof getTelegramStores>['followups']['listRecent']>> = [];
   let chats = 0;
+  let sentTotal = '0';
   try {
     const stores = getTelegramStores();
     const data = await collectFollowupData(stores);
     chats = data.snapshots.length;
+    sentTotal = data.history.length >= 500 ? '500+' : String(data.history.length);
     recent = data.history.slice(0, 10);
     for (const snapshot of data.snapshots) {
       const item = classifyChat(snapshot, now);
@@ -80,7 +84,7 @@ export default async function AdminMarketingPage() {
     <div className="stat-grid four admin-stats">
       <StatCard label="Jami chatlar" value={String(chats)} note="Ro‘yxat + arizalar" icon={<Megaphone size={18} />} tone="blue" />
       <StatCard label="Faol bosqichda" value={String(classified.length)} note={`Shundan hozir yuboriladi: ${eligible}`} icon={<BellRing size={18} />} tone="amber" />
-      <StatCard label="Yuborilgan" value={String(recent.length >= 10 ? '10+' : recent.length)} note="So‘nggi yozuvlar" icon={<Send size={18} />} tone="mint" />
+      <StatCard label="Yuborilgan" value={sentTotal} note="Jami follow-up’lar" icon={<Send size={18} />} tone="mint" />
       <StatCard label="So‘nggi yuborish" value={lastSent} note="Follow-up tarixi" icon={<Clock3 size={18} />} tone="violet" />
     </div>
     <div className="admin-grid">
@@ -95,7 +99,7 @@ export default async function AdminMarketingPage() {
             </div>
           ))}
         </div>
-        <p className="muted-text">Namuna xabar (yarim qolgan ro‘yxat): “{buildFollowupMessage('onboarding-stalled', 'uz', {}).slice(0, 90)}…”</p>
+        <div className="sample-box"><span className="sample-label">NAMUNA XABAR</span><p>{buildFollowupMessage('onboarding-stalled', 'uz', { name: 'Akmal', step: 'awaiting-address' })}</p></div>
       </section>
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">TARIX</div><h3>So‘nggi yuborishlar</h3></div></div>

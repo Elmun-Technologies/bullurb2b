@@ -74,7 +74,7 @@ export default async function AdminDashboardPage() {
     <div className="stat-grid four admin-stats">
       <StatCard label="Kutilayotgan arizalar" value={String(telegram.pending.length)} note="Tasdiqlashni kutyapti" icon={<Clock3 size={18} />} tone="amber" />
       <StatCard label="Tasdiqlangan mijozlar" value={String(telegram.approved.length)} note="Botda faol" icon={<Building2 size={18} />} tone="mint" />
-      <StatCard label="Bot buyurtmalari" value={String(telegram.orders.length)} note="So‘nggi 8 tadan" icon={<ShoppingBag size={18} />} tone="blue" />
+      <StatCard label="Bot buyurtmalari" value={String(telegram.orders.length)} note="So‘nggi 8 ta ichida" icon={<ShoppingBag size={18} />} tone="blue" />
       <StatCard
         label="Katalog mahsulotlari"
         value={shopflow.configured ? String(shopflow.products) : '—'}
