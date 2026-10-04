@@ -24,13 +24,14 @@ MoySklad remains the operational source of truth. Shopflow is the intended appli
 - `src/lib/providers`: provider contracts and mock adapter. Integration boundaries are isolated; real calls are intentionally not guessed.
 - `src/lib/auth`: server-side authorization contract/helper. Production identity and company mapping must come from verified Shopflow session data, never request-controlled customer IDs.
 - `src/app`: App Router pages, with a responsive portal shell and Uzbek-first interface.
+- `src/lib/telegram` + `src/app/api/telegram/*` + `src/app/api/cron/telegram-reminders`: narrow server-side Telegram adapter (Bot API client, webhook receiver, one-time account linking, scheduler dispatch, idempotent delivery log). No separate backend; all secrets stay server-only and the integration fails closed until Shopflow auth, durable storage, live data and secrets exist.
 - `src/components`: shared portal navigation, feedback, product, progress, pricing and order experiences.
 
 ## Security and current limitations
 
 The demo user switcher and browser-side demo cart/settings are for local product evaluation only. They do not provide production authentication or persistence. There is no Shopflow API surface in this checkout to inspect or call. A production deployment must wire Shopflow auth and server-side authorization before exposing customer data, then configure its verified user-to-MoySklad-company mapping. MoySklad tokens belong only in server-side environment variables and must never use `NEXT_PUBLIC_*`.
 
-The `MoySkladProvider` contract is the only intended operational data boundary. The mock provider follows that shape. The real provider remains explicitly unconfigured until the actual Shopflow/MoySklad API contract, account access and status mappings are supplied. No second inventory/order database is introduced.
+Telegram delivery reuses the same provider boundary and loyalty/opportunity rules as the portal, so bot texts always match the in-app reminder center; demo/mock records are refused by the scheduler guard. The `MoySkladProvider` contract is the only intended operational data boundary. The mock provider follows that shape. The real provider remains explicitly unconfigured until the actual Shopflow/MoySklad API contract, account access and status mappings are supplied. No second inventory/order database is introduced.
 
 ## Demo behavior
 

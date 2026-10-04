@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, Building2, ChevronDown, CircleHelp, Command, FileText, LayoutDashboard, LifeBuoy, Menu, PackageSearch, Settings2, ShoppingBag, Sparkles, Tags, Users, X } from 'lucide-react';
+import { Bell, Building2, ChevronDown, CircleHelp, Command, FileText, LayoutDashboard, LifeBuoy, Menu, PackageSearch, Send, Settings2, ShoppingBag, Sparkles, Tags, Users, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePortal } from './portal-context';
 import { getPortalNotifications } from '@/lib/domain/notifications';
@@ -21,6 +21,7 @@ const adminLinks = [
   { href: '/admin/clients', label: 'Mijozlar', icon: Users },
   { href: '/admin/opportunities', label: 'Savdo imkoniyatlari', icon: Sparkles },
   { href: '/admin/loyalty', label: 'Loyallik sozlamalari', icon: Settings2 },
+  { href: '/admin/telegram', label: 'Telegram arizalar', icon: Send },
 ];
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
@@ -30,7 +31,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const { role, setRole, cart, config, allCustomers, allOrders } = usePortal();
   const isAdmin = role !== 'CLIENT';
   const links = useMemo(() => isAdmin ? adminLinks : clientLinks, [isAdmin]);
-  const pageTitle = pathname.startsWith('/admin/clients') ? 'Mijozlar' : pathname.startsWith('/admin/opportunities') ? 'Savdo imkoniyatlari' : pathname.startsWith('/admin/loyalty') ? 'Loyallik sozlamalari' : pathname.startsWith('/admin') ? 'Umumiy ko‘rinish' : clientLinks.find((link) => link.href === pathname)?.label ?? 'Buyurtma';
+  const pageTitle = pathname.startsWith('/admin/clients') ? 'Mijozlar' : pathname.startsWith('/admin/opportunities') ? 'Savdo imkoniyatlari' : pathname.startsWith('/admin/loyalty') ? 'Loyallik sozlamalari' : pathname.startsWith('/admin/telegram') ? 'Telegram arizalar' : pathname.startsWith('/admin') ? 'Umumiy ko‘rinish' : clientLinks.find((link) => link.href === pathname)?.label ?? 'Buyurtma';
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const notifications = useMemo(() => allCustomers[0] ? getPortalNotifications({ role, customer: allCustomers[0], customers: allCustomers, orders: allOrders, config }) : [], [role, allCustomers, allOrders, config]);
 
