@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BellRing, Building2, CheckCircle2, Clock3, FileText, PlugZap, ShoppingBag } from 'lucide-react';
+import { ArrowRight, BellRing, Building2, CheckCircle2, Clock3, FileText, ShoppingBag } from 'lucide-react';
 import { PageHeading, StatCard } from '@/components/ui';
 import { ShopFlowClient } from '@/lib/shopflow/client';
 import { isShopFlowConfigured, requireShopFlowConfig } from '@/lib/shopflow/config';
@@ -140,9 +140,9 @@ export default async function AdminDashboardPage() {
       </section>
 
       <section className="surface">
-        <div className="section-header"><div><div className="section-kicker">INTEGRATSIYALAR</div><h3>Ulanish holati</h3></div><PlugZap size={17} /></div>
+        <div className="section-header"><div><div className="section-kicker">INTEGRATSIYALAR</div><h3>Ulanish holati</h3></div></div>
         <div className="tier-distribution-list">
-          <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>Telegram bot</b><span>{telegramStatus === 'ready' ? 'Ishlayapti ✅' : telegramStatus === 'disabled' ? 'O‘chiq' : 'Sozlanmagan'}</span></div>
+          <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>Telegram bot</b><span>{telegramStatus === 'ready' ? 'Faol ✅' : telegramStatus === 'disabled' ? 'O‘chiq' : 'Sozlanmagan'}</span></div>
           <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>ShopFlow</b><span>{shopflow.configured ? `Ulangan ✅ (${shopflow.products} mahsulot)` : 'Ulanmagan'}</span></div>
           <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>MoySklad</b><span>{moyskladLive ? 'Jonli ✅' : 'Test rejimi'}</span></div>
         </div>

@@ -8,7 +8,8 @@ import { DEFAULT_LOYALTY_CONFIG } from '@/lib/domain/loyalty';
 import type { MoySkladCounterparty } from '@/lib/moysklad/types';
 import type { MoySkladFindResult } from '@/lib/moysklad/client';
 import { TelegramBotApiClient } from './client';
-import { readTelegramAdminChatId, requireTelegramAdminSecret } from './config';
+import { ADMIN_SESSION_COOKIE, createAdminSession } from '@/lib/admin-auth/session';
+import { readTelegramAdminChatId } from './config';
 import { dispatchTelegramReminders, type TelegramSender } from './dispatcher';
 import { buildShareLocationKeyboard, buildSkipLocationLabel } from './messages';
 import { createMemoryTelegramStores, getTelegramStores, resetMemoryTelegramStores, type TelegramStores } from './stores';
@@ -504,10 +505,7 @@ describe('telegram location parsing and keyboard', () => {
 });
 
 describe('telegram admin config', () => {
-  it('requires a strong admin secret and parses the admin chat id', () => {
-    expect(() => requireTelegramAdminSecret({})).toThrow();
-    expect(() => requireTelegramAdminSecret({ TELEGRAM_ADMIN_SECRET: 'short' })).toThrow();
-    expect(requireTelegramAdminSecret({ TELEGRAM_ADMIN_SECRET: 'a'.repeat(32) })).toBe('a'.repeat(32));
+  it('parses the admin chat id', () => {
     expect(readTelegramAdminChatId({})).toBeNull();
     expect(readTelegramAdminChatId({ TELEGRAM_ADMIN_CHAT_ID: 'abc' })).toBeNull();
     expect(readTelegramAdminChatId({ TELEGRAM_ADMIN_CHAT_ID: '999888777' })).toBe('999888777');
@@ -529,12 +527,16 @@ describe('telegram application store', () => {
 });
 
 describe('telegram admin application routes', () => {
-  const ADMIN_SECRET = 'admin-SECRET-value-abcdef0123456789';
+  const ADMIN_PASSWORD = 'test-admin-password-0123456789';
 
   function stubAdminEnv() {
     stubFullEnv();
     vi.stubEnv('TELEGRAM_STORE_MODE', 'memory');
-    vi.stubEnv('TELEGRAM_ADMIN_SECRET', ADMIN_SECRET);
+    vi.stubEnv('ADMIN_PASSWORD', ADMIN_PASSWORD);
+  }
+
+  async function sessionHeaders(extra: Record<string, string> = {}) {
+    return { cookie: `${ADMIN_SESSION_COOKIE}=${await createAdminSession(ADMIN_PASSWORD)}`, ...extra };
   }
 
   function stubTelegramSend() {
@@ -552,12 +554,12 @@ describe('telegram admin application routes', () => {
     await stores.subscriptions.save({ chatId, subjectId: `pilot-phone:${PHONE}`, role: 'CLIENT', phone: PHONE, locale: 'uz', active: true, linkedAt: timestamp });
   }
 
-  it('fails closed without the admin secret or storage', async () => {
+  it('fails closed without the admin password or a session', async () => {
     const noSecret = await adminListGET(new Request('https://portal.test/api/admin/telegram/applications'));
     expect(noSecret.status).toBe(503);
     stubAdminEnv();
     const wrongSecret = await adminListGET(
-      new Request('https://portal.test/api/admin/telegram/applications', { headers: { authorization: 'Bearer wrong' } }),
+      new Request('https://portal.test/api/admin/telegram/applications', { headers: { cookie: `${ADMIN_SESSION_COOKIE}=bogus` } }),
     );
     expect(wrongSecret.status).toBe(401);
   });
@@ -566,14 +568,14 @@ describe('telegram admin application routes', () => {
     stubAdminEnv();
     await seedPending();
     const pending = await adminListGET(
-      new Request('https://portal.test/api/admin/telegram/applications?status=pending', { headers: { authorization: `Bearer ${ADMIN_SECRET}` } }),
+      new Request('https://portal.test/api/admin/telegram/applications?status=pending', { headers: await sessionHeaders() }),
     );
     expect(pending.status).toBe(200);
     const body = (await pending.json()) as { ok: boolean; applications: Array<{ company: string }> };
     expect(body.applications).toHaveLength(1);
     expect(body.applications[0].company).toBe('BARAKA SAVDO');
     const bad = await adminListGET(
-      new Request('https://portal.test/api/admin/telegram/applications?status=nope', { headers: { authorization: `Bearer ${ADMIN_SECRET}` } }),
+      new Request('https://portal.test/api/admin/telegram/applications?status=nope', { headers: await sessionHeaders() }),
     );
     expect(bad.status).toBe(400);
   });
@@ -583,7 +585,7 @@ describe('telegram admin application routes', () => {
     const fetchStub = stubTelegramSend();
     await seedPending();
     const response = await adminApprovePOST(
-      new Request(`https://portal.test/api/admin/telegram/applications/${CHAT_ID}/approve`, { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } }),
+      new Request(`https://portal.test/api/admin/telegram/applications/${CHAT_ID}/approve`, { method: 'POST', headers: await sessionHeaders() }),
       { params: Promise.resolve({ chatId: String(CHAT_ID) }) },
     );
     expect(response.status).toBe(200);
@@ -594,12 +596,12 @@ describe('telegram admin application routes', () => {
     expect((await stores.subscriptions.getByChatId(CHAT_ID))?.active).toBe(true);
 
     const again = await adminApprovePOST(
-      new Request(`https://portal.test/api/admin/telegram/applications/${CHAT_ID}/approve`, { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } }),
+      new Request(`https://portal.test/api/admin/telegram/applications/${CHAT_ID}/approve`, { method: 'POST', headers: await sessionHeaders() }),
       { params: Promise.resolve({ chatId: String(CHAT_ID) }) },
     );
     expect(again.status).toBe(409);
     const missing = await adminApprovePOST(
-      new Request('https://portal.test/api/admin/telegram/applications/424242/approve', { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } }),
+      new Request('https://portal.test/api/admin/telegram/applications/424242/approve', { method: 'POST', headers: await sessionHeaders() }),
       { params: Promise.resolve({ chatId: '424242' }) },
     );
     expect(missing.status).toBe(404);
@@ -612,7 +614,7 @@ describe('telegram admin application routes', () => {
     const response = await adminRejectPOST(
       new Request(`https://portal.test/api/admin/telegram/applications/${CHAT_ID}/reject`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${ADMIN_SECRET}`, 'content-type': 'application/json' },
+        headers: await sessionHeaders({ 'content-type': 'application/json' }),
         body: JSON.stringify({ reason: 'Manzil to‘liq emas' }),
       }),
       { params: Promise.resolve({ chatId: String(CHAT_ID) }) },

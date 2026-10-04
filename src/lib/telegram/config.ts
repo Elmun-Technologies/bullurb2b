@@ -19,7 +19,6 @@ export interface TelegramEnv {
   TELEGRAM_WEBHOOK_SECRET?: string;
   TELEGRAM_LINKING_SECRET?: string;
   TELEGRAM_CRON_SECRET?: string;
-  TELEGRAM_ADMIN_SECRET?: string;
   TELEGRAM_ADMIN_CHAT_ID?: string;
   MOYSKLAD_MODE?: string;
 }
@@ -108,13 +107,6 @@ export function requireTelegramLinkingSecret(env: NodeJS.ProcessEnv | TelegramEn
 export function requireTelegramCronSecret(env: NodeJS.ProcessEnv | TelegramEnv = process.env): string {
   const secret = readEnv(env, 'TELEGRAM_CRON_SECRET');
   if (secret.length < 32) throw new IntegrationError('UNCONFIGURED', 'Telegram scheduler secret is not configured.');
-  return secret;
-}
-
-/** Admin-panel bearer secret for reviewing registration applications. */
-export function requireTelegramAdminSecret(env: NodeJS.ProcessEnv | TelegramEnv = process.env): string {
-  const secret = readEnv(env, 'TELEGRAM_ADMIN_SECRET');
-  if (secret.length < 32) throw new IntegrationError('UNCONFIGURED', 'Telegram admin secret is not configured.');
   return secret;
 }
 

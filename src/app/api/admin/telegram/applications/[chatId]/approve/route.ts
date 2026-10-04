@@ -1,11 +1,11 @@
+import { checkAdminSession } from '@/lib/admin-auth/session';
 import { IntegrationError } from '@/lib/providers/errors';
 import { readShopFlowStorefrontUrl } from '@/lib/shopflow/config';
 import { decideApplication } from '@/lib/telegram/admin';
 import { TelegramBotApiClient } from '@/lib/telegram/client';
-import { requireTelegramAdminSecret, requireTelegramDeliveryConfig } from '@/lib/telegram/config';
+import { requireTelegramDeliveryConfig } from '@/lib/telegram/config';
 import type { TelegramSender } from '@/lib/telegram/dispatcher';
 import { getTelegramStores } from '@/lib/telegram/stores';
-import { extractBearerToken, verifyBearerSecret } from '@/lib/telegram/webhook';
 
 /**
  * Approves a pending registration application and notifies the chat.
@@ -15,19 +15,11 @@ import { extractBearerToken, verifyBearerSecret } from '@/lib/telegram/webhook';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, context: { params: Promise<{ chatId: string }> }): Promise<Response> {
+  const session = await checkAdminSession(request);
+  if (session !== 'ok') {
+    return Response.json({ ok: false, error: session === 'unconfigured' ? 'admin-unconfigured' : 'unauthorized' }, { status: session === 'unconfigured' ? 503 : 401 });
+  }
   const stores = getTelegramStores();
-  let adminSecret: string;
-  try {
-    adminSecret = requireTelegramAdminSecret();
-  } catch (error) {
-    if (error instanceof IntegrationError && error.failure === 'UNCONFIGURED') {
-      return Response.json({ ok: false, error: 'admin-unconfigured' }, { status: 503 });
-    }
-    throw error;
-  }
-  if (!verifyBearerSecret(extractBearerToken(request.headers.get('authorization')), adminSecret)) {
-    return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
 
   const chatId = Number((await context.params).chatId);
   if (!Number.isInteger(chatId)) {

@@ -1,32 +1,30 @@
+import { checkAdminSession } from '@/lib/admin-auth/session';
 import { IntegrationError } from '@/lib/providers/errors';
-import { requireTelegramAdminSecret } from '@/lib/telegram/config';
 import { getTelegramStores } from '@/lib/telegram/stores';
 import type { TelegramApplicationStatus } from '@/lib/telegram/types';
-import { extractBearerToken, verifyBearerSecret } from '@/lib/telegram/webhook';
 
 /**
  * Admin review queue for bot registration applications.
- * Bearer-protected by TELEGRAM_ADMIN_SECRET (the portal demo role switcher
- * is NOT authentication and is never trusted here).
+ * Protected by the admin login session (middleware + this check); the
+ * portal demo role switcher is NOT authentication and is never trusted.
  */
 export const dynamic = 'force-dynamic';
 
 const STATUSES: TelegramApplicationStatus[] = ['pending', 'approved', 'rejected'];
 
 export async function GET(request: Request): Promise<Response> {
+  const session = await checkAdminSession(request);
+  if (session !== 'ok') {
+    return Response.json({ ok: false, error: session === 'unconfigured' ? 'admin-unconfigured' : 'unauthorized' }, { status: session === 'unconfigured' ? 503 : 401 });
+  }
   const stores = getTelegramStores();
-  let adminSecret: string;
   try {
-    adminSecret = requireTelegramAdminSecret();
     await stores.applications.listByStatus('pending');
   } catch (error) {
     if (error instanceof IntegrationError && error.failure === 'UNCONFIGURED') {
       return Response.json({ ok: false, error: 'admin-unconfigured' }, { status: 503 });
     }
     throw error;
-  }
-  if (!verifyBearerSecret(extractBearerToken(request.headers.get('authorization')), adminSecret)) {
-    return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);

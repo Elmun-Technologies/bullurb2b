@@ -62,8 +62,7 @@ export async function isValidAdminSession(token: string, secret: string, now = D
 }
 
 /** Constant-time-ish password check: SHA-256 both sides, then compare digests. */
-export async function verifyAdminPassword(input: string, secret: string): Promise<boolean> {
-  const [a, b] = await Promise.all([
+export async function verifyAdminPassword(input: string, secret: string): Promise<boolean> {  const [a, b] = await Promise.all([
     crypto.subtle.digest('SHA-256', encoder.encode(input.trim())),
     crypto.subtle.digest('SHA-256', encoder.encode(secret)),
   ]);
@@ -72,4 +71,23 @@ export async function verifyAdminPassword(input: string, secret: string): Promis
   let mismatch = 0;
   for (let index = 0; index < left.length; index += 1) mismatch |= left[index] ^ right[index];
   return mismatch === 0;
+}
+
+export function readAdminSessionToken(request: Request): string | null {
+  const header = request.headers.get('cookie') ?? '';
+  for (const part of header.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(`${ADMIN_SESSION_COOKIE}=`)) {
+      return trimmed.slice(ADMIN_SESSION_COOKIE.length + 1).trim() || null;
+    }
+  }
+  return null;
+}
+
+/** Second auth layer for /api/admin routes (middleware is the first). */
+export async function checkAdminSession(request: Request): Promise<'ok' | 'unconfigured' | 'unauthorized'> {
+  const secret = requireAdminPassword();
+  if (!secret) return 'unconfigured';
+  const token = readAdminSessionToken(request);
+  return token && (await isValidAdminSession(token, secret)) ? 'ok' : 'unauthorized';
 }

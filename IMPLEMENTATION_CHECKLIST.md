@@ -43,7 +43,8 @@
 - [x] BFF proxy routes under `/api/shopflow/*`: fail-fast input validation, fail-closed 503 without config, safe error mapping, key never exposed.
 - [x] Outbound webhook receiver with raw-body HMAC-SHA256 verification for `order.created` / `order.status_changed` / `order.paid` (verified order events feed the admin “store orders” widget; Telegram fan-out still needs mapping + durable storage).
 - [x] Admin clients + client details are 100% live (approved applications + per-client bot orders); opportunities is an honest placeholder until purchase history exists.
-- [x] Admin login wall: `ADMIN_PASSWORD` + signed 12h session cookie, middleware gates `/admin/*` + `/api/admin/*` (login form, logout, per-IP throttle, fail-closed 503 when unconfigured). Full per-user auth (DB users, lockout, audit) is the next stage.
+- [x] Admin login wall: `ADMIN_PASSWORD` + signed 12h session cookie, middleware gates `/admin/*` + `/api/admin/*` (login form, logout, per-IP throttle, fail-closed 503 when unconfigured). The old per-page `TELEGRAM_ADMIN_SECRET` prompt is retired — review API uses the login session (single sign-on). Full per-user auth (DB users, lockout, audit) is the next stage.
+- [x] Admin shell cleanup: no demo workspace/profile/promo/cart/bell on `/admin/*`, route-aware footer, fixed live-row grid (+ mobile).
 - [x] In-bot catalog + ordering (`/katalog` for approved chats: categories → products → variant → MOQ quantity → courier/pickup → address → confirm → `POST /orders`, admin notified; fail-closed “coming soon”, single-order guard, live promos in `/dastur`).
 - [x] Mini App storefront (`/katalog` opens `SHOPFLOW_STOREFRONT_URL` via a `web_app` button; button catalog stays as fallback; BotFather `/newapp` + Menu button; bot token never shared with ShopFlow).
 - [x] Main menu buttons (`/menu`, `/start` for approved, attached to approval: shop / points+discounts / profile / help with back navigation; stateless; commands stay as fallback).

@@ -45,12 +45,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const notifications = useMemo(() => allCustomers[0] ? getPortalNotifications({ role, customer: allCustomers[0], customers: allCustomers, orders: allOrders, config }) : [], [role, allCustomers, allOrders, config]);
 
   const navContent = <>
-    <Link href="/dashboard" className="brand-lockup" onClick={() => setOpen(false)}>
+    <Link href={onAdminRoute ? '/admin' : '/dashboard'} className="brand-lockup" onClick={() => setOpen(false)}>
       <span className="brand-mark"><Command size={21} strokeWidth={2.4} /></span>
-      <span className="brand-copy"><strong>baraka</strong><small>B2B hamkorlar portali</small></span>
+      <span className="brand-copy"><strong>baraka</strong><small>{onAdminRoute ? 'Boshqaruv paneli' : 'B2B hamkorlar portali'}</small></span>
     </Link>
     <div className="workspace-label">ISH JOYI</div>
-    <div className="workspace-select"><span className="workspace-avatar">S</span><span><b>Samarqand Market</b><small>Premium hamkor</small></span><ChevronDown size={15} /></div>
+    {onAdminRoute
+      ? <div className="workspace-select"><span className="workspace-avatar">B</span><span><b>Baraka admin</b><small>Boshqaruv</small></span></div>
+      : <div className="workspace-select"><span className="workspace-avatar">S</span><span><b>Samarqand Market</b><small>Premium hamkor</small></span><ChevronDown size={15} /></div>}
     <div className="nav-label">ASOSIY</div>
     <nav className="side-nav" aria-label="Asosiy navigatsiya">
       {links.map(({ href, label, icon: Icon }) => {
@@ -59,9 +61,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       })}
     </nav>
     <div className="sidebar-spacer" />
-    <div className="sidebar-promo"><div className="promo-icon"><Sparkles size={16} /></div><strong>Keyingi bosqichga yaqin!</strong><p>Har bir buyurtma sizga yanada yaxshi narx olib keladi.</p><Link href={isAdmin ? '/admin/opportunities' : '/loyalty'}>Batafsil <span>↗</span></Link></div>
+    {onAdminRoute ? null : <div className="sidebar-promo"><div className="promo-icon"><Sparkles size={16} /></div><strong>Keyingi bosqichga yaqin!</strong><p>Har bir buyurtma sizga yanada yaxshi narx olib keladi.</p><Link href={isAdmin ? '/admin/opportunities' : '/loyalty'}>Batafsil <span>↗</span></Link></div>}
     <div className="sidebar-help"><CircleHelp size={17} /><span>Yordam markazi</span><LifeBuoy size={16} className="help-right" /></div>
-    <div className="profile-row"><div className="profile-avatar">{isAdmin ? 'AT' : 'SK'}</div><span className="profile-name"><b>{isAdmin ? 'Azizbek Tursunov' : 'Samarqand Market'}</b><small>{isAdmin ? 'Savdo menejeri' : 'Hamkor hisobi'}</small></span><button aria-label="Profil sozlamalari" className="icon-button profile-more"><ChevronDown size={16} /></button></div>
+    {onAdminRoute
+      ? <div className="profile-row"><div className="profile-avatar">AD</div><span className="profile-name"><b>Administrator</b><small>Tizim administratori</small></span></div>
+      : <div className="profile-row"><div className="profile-avatar">{isAdmin ? 'AT' : 'SK'}</div><span className="profile-name"><b>{isAdmin ? 'Azizbek Tursunov' : 'Samarqand Market'}</b><small>{isAdmin ? 'Savdo menejeri' : 'Hamkor hisobi'}</small></span><button aria-label="Profil sozlamalari" className="icon-button profile-more"><ChevronDown size={16} /></button></div>}
   </>;
 
   if (isLoginRoute) {
@@ -79,10 +83,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           {onAdminRoute
             ? <><span className="admin-badge">Administrator</span><button className="button ghost small" onClick={logout}><LogOut size={15} /> Chiqish</button></>
             : <div className="demo-select-wrap"><span className="demo-dot" /><select aria-label="Demo ko‘rinishi" value={role} onChange={(event) => setRole(event.target.value as 'CLIENT' | 'ADMIN' | 'SALES_MANAGER')}><option value="CLIENT">Mijoz ko‘rinishi</option><option value="SALES_MANAGER">Menejer ko‘rinishi</option><option value="ADMIN">Admin ko‘rinishi</option></select><ChevronDown size={13} /></div>}
+          {onAdminRoute ? null : <>
           <Link href="/orders/new" aria-label={`Savat, ${cartCount} ta mahsulot`} className="top-icon-button cart-shortcut"><ShoppingBag size={18} />{cartCount > 0 ? <i>{cartCount}</i> : null}</Link>
           <button className="top-icon-button notification-button" aria-label={`Eslatmalar, ${notifications.length} ta`} aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}><Bell size={18} />{notifications.length > 0 ? <i>{notifications.length > 9 ? '9+' : notifications.length}</i> : null}</button>
           {notificationsOpen ? <section className="notification-popover" aria-label="Eslatmalar markazi"><div className="notification-popover-head"><span><strong>{uz.reminders.title}</strong><small>{notifications.length ? uz.reminders.count(notifications.length) : uz.reminders.none}</small></span><button className="icon-button" aria-label="Eslatmalarni yopish" onClick={() => setNotificationsOpen(false)}><X size={15} /></button></div>{notifications.length ? <div className="notification-list">{notifications.map((item) => <Link href={item.href} key={item.id} className="notification-item" onClick={() => setNotificationsOpen(false)}><span className={`notification-kind ${item.kind.toLowerCase().replaceAll('_', '-')}`}><Sparkles size={15} /></span><span><b>{item.title}</b><small>{item.message}</small></span><ChevronDown size={14} className="notification-arrow" /></Link>)}</div> : <p className="notification-empty">{uz.reminders.empty}</p>}<div className="notification-foot">{uz.reminders.footer}</div></section> : null}
           <div className="top-avatar">SK</div>
+          </>}
         </div>
       </header>
       <main className="page-content">{children}</main>

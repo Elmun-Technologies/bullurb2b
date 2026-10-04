@@ -78,8 +78,7 @@ single Fly machine (memory stores are a process-level singleton):
    a Google Maps link.
 
 Admin review happens at `/admin/telegram` (see the “Telegram arizalar” nav
-item). Every admin API call needs `Authorization: Bearer
-<TELEGRAM_ADMIN_SECRET>` (≥ 32 chars, server-only, set via `fly secrets set`);
+item). Auth comes from the admin login session (`ADMIN_PASSWORD`, cookie);
 the demo role switcher is never trusted. Approve/reject endpoints
 (`POST /api/admin/telegram/applications/[chatId]/approve|reject`) update the
 status and notify the chat over the bot (a `notified` flag reports delivery).
@@ -199,8 +198,8 @@ Official references: Bot API
 | `TELEGRAM_WEBHOOK_SECRET` | 1–256 chars, `A–Z a–z 0–9 _ -` (Bot API `secret_token` charset). |
 | `TELEGRAM_LINKING_SECRET` | ≥ 32 chars HMAC pepper for persisted link-code hashes. |
 | `TELEGRAM_CRON_SECRET` | ≥ 32 chars bearer token for the scheduler endpoint. |
-| `TELEGRAM_ADMIN_SECRET` | ≥ 32 chars bearer token for the admin review API (`/api/admin/telegram/*`). Required for approve/reject. |
 | `TELEGRAM_ADMIN_CHAT_ID` | Optional numeric chat id for new-application bot notifications (via `@userinfobot`). |
+| `ADMIN_PASSWORD` | Admin login password (min 12 chars) — gates `/admin/*` + `/api/admin/*` via a signed 12h session. |
 | `TELEGRAM_STORE_MODE` | Leave empty in production. `memory` is for local dry runs with a fake sender only — never with a real token. |
 
 Generate secrets with e.g. `openssl rand -base64 32 | tr '/+=' '_-_'`.

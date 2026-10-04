@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Check, MapPin, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { Check, MapPin, RefreshCw, X } from 'lucide-react';
 import { PageHeading } from '@/components/ui';
 
 interface Application {
@@ -18,39 +19,36 @@ interface Application {
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
-const SECRET_KEY = 'tg-admin-secret';
-
 /**
  * Admin review queue for bot registration applications.
- * Every request carries the operator-pasted TELEGRAM_ADMIN_SECRET as a
- * Bearer token (kept in session storage, never in code); the API rejects
- * unauthenticated calls, and the demo role switcher is never trusted.
+ * Auth comes from the admin login session cookie (middleware guarantees it),
+ * so there is no second secret prompt — fetch sends cookies automatically.
  */
 export default function AdminTelegramPage() {
-  const [secret, setSecret] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
   const [filter, setFilter] = useState<Filter>('pending');
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [reasonFor, setReasonFor] = useState<number | null>(null);
   const [reason, setReason] = useState('');
 
-  const load = useCallback(async (token: string, status: Filter) => {
+  const load = useCallback(async (status: Filter) => {
     setLoading(true);
     setError(null);
+    setSessionExpired(false);
     try {
-      const response = await fetch(`/api/admin/telegram/applications?status=${status}`, {
-        cache: 'no-store',
-        headers: { authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(`/api/admin/telegram/applications?status=${status}`, { cache: 'no-store' });
       const body = (await response.json()) as { ok: boolean; applications?: Application[]; error?: string };
       if (!response.ok || !body.ok) {
-        setError(response.status === 401 ? 'Secret noto‘g‘ri.' : response.status === 503 ? 'Admin rejim sozlanmagan (secret/storage).' : `Xatolik: ${body.error ?? 'noma’lum'}`);
+        if (response.status === 401) {
+          setSessionExpired(true);
+          return;
+        }
+        setError(response.status === 503 ? 'Admin rejim sozlanmagan.' : `Xatolik: ${body.error ?? 'noma’lum'}`);
         return;
       }
       setApplications(body.applications ?? []);
-      setUnlocked(true);
     } catch {
       setError('So‘rov bajarilmadi. Qayta urinib ko‘ring.');
     } finally {
@@ -59,37 +57,30 @@ export default function AdminTelegramPage() {
   }, []);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(SECRET_KEY);
-    if (saved) {
-      setSecret(saved);
-      void load(saved, 'pending');
-    }
-  }, [load]);
-
-  const unlock = useCallback(() => {
-    if (!secret.trim()) return;
-    sessionStorage.setItem(SECRET_KEY, secret.trim());
-    void load(secret.trim(), filter);
-  }, [secret, filter, load]);
+    void load(filter);
+  }, [filter, load]);
 
   const decide = useCallback(async (chatId: number, decision: 'approve' | 'reject') => {
     setError(null);
     try {
-      const token = sessionStorage.getItem(SECRET_KEY) ?? '';
       const response = await fetch(`/api/admin/telegram/applications/${chatId}/${decision}`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(decision === 'reject' ? { reason } : {}),
       });
       const body = (await response.json()) as { ok: boolean; error?: string; notified?: boolean };
       if (!response.ok || !body.ok) {
+        if (response.status === 401) {
+          setSessionExpired(true);
+          return;
+        }
         setError(`Xatolik: ${body.error ?? 'noma’lum'}`);
         return;
       }
       if (!body.notified) setError('Qaror saqlandi, lekin bot xabari yuborilmadi (bot sozlamasini tekshiring).');
       setReasonFor(null);
       setReason('');
-      await load(token, filter);
+      await load(filter);
     } catch {
       setError('So‘rov bajarilmadi. Qayta urinib ko‘ring.');
     }
@@ -98,24 +89,17 @@ export default function AdminTelegramPage() {
   return (
     <>
       <PageHeading eyebrow="TELEGRAM BOT" title="Ro‘yxatdan o‘tish arizalari" description="Bot orqali kelgan mijoz arizalarini ko‘rib chiqing va tasdiqlang." />
-      {!unlocked ? (
-        <section className="surface" style={{ maxWidth: 520 }}>
-          <div className="section-header"><div><div className="section-kicker">ADMIN KIRISH</div><h3>Admin secret</h3><p>Server dagi TELEGRAM_ADMIN_SECRET qiymatini kiriting (brauzerda saqlanmaydi, faqat sessiya uchun).</p></div><ShieldCheck size={18} /></div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') unlock(); }} placeholder="Admin secret" className="input" style={{ flex: 1 }} aria-label="Admin secret" />
-            <button type="button" className="button primary" onClick={unlock}>Kirish</button>
-          </div>
-          {error ? <p className="telegram-error">{error}</p> : null}
-        </section>
+      {sessionExpired ? (
+        <section className="surface"><p>Sessiya tugagan. <Link href="/admin/login" className="text-link">Qayta kiring</Link>.</p></section>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             {(['pending', 'approved', 'rejected', 'all'] as Filter[]).map((value) => (
-              <button key={value} type="button" className={`button ${filter === value ? 'primary' : 'secondary'}`} onClick={() => { setFilter(value); void load(sessionStorage.getItem(SECRET_KEY) ?? '', value); }}>
+              <button key={value} type="button" className={`button ${filter === value ? 'primary' : 'secondary'}`} onClick={() => setFilter(value)}>
                 {value === 'pending' ? 'Kutilmoqda' : value === 'approved' ? 'Tasdiqlangan' : value === 'rejected' ? 'Rad etilgan' : 'Barchasi'}
               </button>
             ))}
-            <button type="button" className="button secondary" onClick={() => load(sessionStorage.getItem(SECRET_KEY) ?? '', filter)} aria-label="Yangilash"><RefreshCw size={15} /> Yangilash</button>
+            <button type="button" className="button secondary" onClick={() => load(filter)} aria-label="Yangilash"><RefreshCw size={15} /> Yangilash</button>
           </div>
           {error ? <p className="telegram-error">{error}</p> : null}
           {loading ? <p>Yuklanmoqda…</p> : null}
