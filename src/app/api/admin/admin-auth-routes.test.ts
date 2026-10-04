@@ -68,4 +68,11 @@ describe('admin middleware gate', () => {
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject({ ok: false, error: 'admin-auth-required' });
   });
+
+  it('lets the login and logout endpoints through without a session', async () => {
+    vi.stubEnv('ADMIN_PASSWORD', SECRET);
+    for (const path of ['/admin/login', '/api/admin/login', '/api/admin/logout']) {
+      expect((await middleware(new NextRequest(`https://portal.test${path}`))).status).toBe(200);
+    }
+  });
 });

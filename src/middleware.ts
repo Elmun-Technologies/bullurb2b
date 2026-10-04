@@ -8,6 +8,12 @@ import { ADMIN_SESSION_COOKIE, isValidAdminSession, requireAdminPassword } from 
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // The login/logout endpoints must stay public — otherwise nobody could
+  // ever obtain (or clear) a session. Matcher excludes them too; this is
+  // defense in depth so the gate never depends on config alone.
+  if (pathname === '/admin/login' || pathname === '/api/admin/login' || pathname === '/api/admin/logout') {
+    return NextResponse.next();
+  }
   const isApi = pathname.startsWith('/api/admin/');
   const secret = requireAdminPassword();
 
@@ -27,5 +33,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin', '/admin/((?!login$|login/).*)', '/api/admin/:path*'],
+  matcher: ['/admin', '/admin/((?!login$|login/).*)', '/api/admin/((?!login$|logout$).*)'],
 };
