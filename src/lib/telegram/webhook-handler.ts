@@ -100,6 +100,8 @@ export interface WebhookHandleInput {
   adminChatId?: string | null;
   /** ShopFlow catalog backend; when null, the catalog honestly reports “coming soon”. */
   shop?: CatalogBackend | null;
+  /** Mini App storefront URL; when set, /katalog opens it instead of buttons. */
+  storefrontUrl?: string | null;
   now?: Date;
   logger?: TelegramClientLogger;
 }
@@ -140,7 +142,7 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
       ? createOnboardingContext({ stores: input.stores, sender: input.sender, directory: input.directory, now, logger })
       : null;
     const pilot = createPilotContext({ stores: input.stores, sender: input.sender, now, logger, adminChatId: input.adminChatId ?? null });
-    const shopContext: ShopContext = { stores: input.stores, sender: input.sender, shop: input.shop ?? null, adminChatId: input.adminChatId ?? null, now, logger };
+    const shopContext: ShopContext = { stores: input.stores, sender: input.sender, shop: input.shop ?? null, storefrontUrl: input.storefrontUrl ?? null, adminChatId: input.adminChatId ?? null, now, logger };
 
     // Contact shares (phone onboarding).
     if (message.contact) {
@@ -386,7 +388,7 @@ async function handleCallbackQuery(
       const subscription = await input.stores.subscriptions.getByChatId(query.chatId);
       const locale: TelegramLocale = subscription?.locale === 'ru' ? 'ru' : 'uz';
       await handleShopCallback(
-        { stores: input.stores, sender: input.sender, shop: input.shop ?? null, adminChatId: input.adminChatId ?? null, now, logger },
+        { stores: input.stores, sender: input.sender, shop: input.shop ?? null, storefrontUrl: input.storefrontUrl ?? null, adminChatId: input.adminChatId ?? null, now, logger },
         query,
         locale,
       );

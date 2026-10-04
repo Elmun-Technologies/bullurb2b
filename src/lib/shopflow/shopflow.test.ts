@@ -3,7 +3,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { IntegrationError } from '@/lib/providers/errors';
 import { ShopFlowApiError, ShopFlowClient } from './client';
-import { isShopFlowConfigured, requireShopFlowConfig, requireShopFlowWebhookSecret } from './config';
+import { isShopFlowConfigured, readShopFlowStorefrontUrl, requireShopFlowConfig, requireShopFlowWebhookSecret } from './config';
 import {
   ShopFlowValidationError,
   assertProduct,
@@ -78,6 +78,13 @@ describe('shopflow server config fails closed', () => {
     expect(() => requireShopFlowWebhookSecret({})).toThrow(IntegrationError);
     expect(() => requireShopFlowWebhookSecret({ SHOPFLOW_WEBHOOK_SECRET: 'short' })).toThrow(IntegrationError);
     expect(requireShopFlowWebhookSecret({ SHOPFLOW_WEBHOOK_SECRET: '0123456789abcdef' })).toBe('0123456789abcdef');
+  });
+
+  it('reads an optional https storefront url (null when unset/invalid)', () => {
+    expect(readShopFlowStorefrontUrl({})).toBeNull();
+    expect(readShopFlowStorefrontUrl({ SHOPFLOW_STOREFRONT_URL: 'not-a-url' })).toBeNull();
+    expect(readShopFlowStorefrontUrl({ SHOPFLOW_STOREFRONT_URL: 'http://plain.example/store' })).toBeNull();
+    expect(readShopFlowStorefrontUrl({ SHOPFLOW_STOREFRONT_URL: '  https://shop-flow.uz/store/billur  ' })).toBe('https://shop-flow.uz/store/billur');
   });
 });
 

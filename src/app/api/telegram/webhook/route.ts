@@ -6,7 +6,7 @@ import { handleTelegramUpdate } from '@/lib/telegram/webhook-handler';
 import { requireMoySkladConfig } from '@/lib/moysklad/config';
 import { MoySkladClient } from '@/lib/moysklad/client';
 import { ShopFlowClient } from '@/lib/shopflow/client';
-import { requireShopFlowConfig } from '@/lib/shopflow/config';
+import { readShopFlowStorefrontUrl, requireShopFlowConfig } from '@/lib/shopflow/config';
 import type { CounterpartyDirectory } from '@/lib/telegram/onboarding';
 
 /**
@@ -47,6 +47,7 @@ export async function POST(request: Request): Promise<Response> {
     directory: buildCounterpartyDirectory(),
     adminChatId: readTelegramAdminChatId(),
     shop: buildShopCatalog(),
+    storefrontUrl: readShopFlowStorefrontUrl(),
   });
   return Response.json({ ok: true, action: result.action });
 }

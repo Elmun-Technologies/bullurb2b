@@ -48,12 +48,22 @@ versioned) plus **outbound webhooks** for order events:
 
 ## In-bot catalog + ordering (`/katalog`)
 
-Approved Telegram clients browse and order without leaving the chat:
-categories → products (5/page) → detail (price/stock/MOQ/tiers) → variant →
-quantity (MOQ-enforced) → courier/pickup → address (or the registered one,
-skippable on pickup) → confirm → `POST /orders`. Name/phone come from the
-verified registration application; `attribution.utmSource` is `telegram-bot`;
-displayed prices are never sent back (ShopFlow recomputes totals).
+`/katalog` opens the ShopFlow Mini App storefront inside Telegram (primary,
+professional UI) with the button catalog as fallback:
+
+- **Mini App (primary).** Set `SHOPFLOW_STOREFRONT_URL` (e.g.
+  `https://shop-flow.uz/store/billur`) and `/katalog` sends a `web_app`
+  button opening the store: products, cart, checkout. No bot token is shared
+  with ShopFlow — one token means one webhook, so ShopFlow must never set a
+  webhook on our bot. Register the app in BotFather (`/newapp` on our bot +
+  Menu button → the same URL) so it also opens from the chat menu.
+- **Button catalog (fallback).** Without the storefront URL, approved
+  clients browse in-chat: categories → products (5/page) → detail
+  (price/stock/MOQ/tiers) → variant → quantity (MOQ-enforced) →
+  courier/pickup → address (or the registered one, skippable on pickup) →
+  confirm → `POST /orders`. Name/phone come from the verified registration
+  application; `attribution.utmSource` is `telegram-bot`; displayed prices
+  are never sent back (ShopFlow recomputes totals).
 
 - Code: `src/lib/telegram/catalog.ts` (`CatalogBackend` interface — the real
   `ShopFlowClient` in production, a fake in tests), wired in

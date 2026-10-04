@@ -106,8 +106,17 @@ export interface TelegramReplyKeyboardRemove {
 }
 
 /** Inline buttons under a message (callback_data comes back as callback_query). */
+export interface TelegramInlineKeyboardButton {
+  text: string;
+  callback_data?: string;
+  /** Plain URL button (opens outside Telegram). */
+  url?: string;
+  /** Mini App button (opens a Web App inside Telegram). */
+  web_app?: { url: string };
+}
+
 export interface TelegramInlineKeyboardMarkup {
-  inline_keyboard: { text: string; callback_data: string }[][];
+  inline_keyboard: TelegramInlineKeyboardButton[][];
 }
 
 export type TelegramReplyMarkup = TelegramReplyKeyboardMarkup | TelegramReplyKeyboardRemove | TelegramInlineKeyboardMarkup;

@@ -15,6 +15,7 @@ export interface ShopFlowEnv {
   SHOPFLOW_API_URL?: string;
   SHOPFLOW_API_KEY?: string;
   SHOPFLOW_WEBHOOK_SECRET?: string;
+  SHOPFLOW_STOREFRONT_URL?: string;
 }
 
 export interface ShopFlowConfig {
@@ -53,6 +54,17 @@ export function isShopFlowConfigured(env: NodeJS.ProcessEnv | ShopFlowEnv = proc
   } catch {
     return false;
   }
+}
+
+/**
+ * Optional Mini App storefront URL (e.g. `https://shop.uz/store/billur`).
+ * Returns null when unset/invalid — the bot then falls back to the
+ * button-based catalog (or an honest “coming soon” without API keys).
+ */
+export function readShopFlowStorefrontUrl(env: NodeJS.ProcessEnv | ShopFlowEnv = process.env): string | null {
+  const raw = readEnv(env, 'SHOPFLOW_STOREFRONT_URL');
+  if (!/^https:\/\/.+/u.test(raw)) return null;
+  return raw;
 }
 
 /** Fail-closed: HMAC secret for verifying ShopFlow outbound webhooks. */

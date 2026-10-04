@@ -110,11 +110,12 @@ their stored data + application status, `/dastur` lists the loyalty tiers and
 discounts (static program info; personal progress needs the live MoySklad
 adapter). All three work without any external keys.
 
-`/katalog` (needs `SHOPFLOW_API_URL` + `SHOPFLOW_API_KEY`, see
-`SHOPFLOW_INTEGRATION.md`) opens the in-bot shop: categories → products →
-variant → quantity → delivery → address → confirm → real ShopFlow order, with
-the admin notified per order. Without the keys the bot honestly says the
-catalog is coming soon. `/dastur` appends live promotions when configured.
+`/katalog` (needs ShopFlow keys, see `SHOPFLOW_INTEGRATION.md`) opens the
+Mini App store (`SHOPFLOW_STOREFRONT_URL`) inside Telegram, with a
+button-based catalog as fallback (categories → products → variant → quantity
+→ delivery → address → confirm → real ShopFlow order, admin notified per
+order). Without the keys the bot honestly says the catalog is coming soon.
+`/dastur` appends live promotions when configured.
 
 ## Client test script (2–3 day pilot, copy-paste to testers)
 
@@ -175,6 +176,10 @@ GET /api/telegram/status ──> secret-free status for the setup UI ({ disabled
 3. Optionally `/setdescription`, `/setabouttext`, and `/setcommands`:
    `start` (start/registration), `katalog` (products/orders), `profil`
    (my data), `dastur` (tiers), `help`, `stop`.
+4. Mini App store: `/newapp` on this bot with the ShopFlow storefront URL,
+   then `/mybots` → the bot → Menu Button → the same URL (label e.g.
+   `🛒 Do‘kon`). Mirrors `/katalog`; never give this bot's token to
+   ShopFlow (one token = one webhook).
 
 Official references: Bot API
 ([sendMessage/setWebhook](https://core.telegram.org/bots/api)),
@@ -331,7 +336,7 @@ curl -s -X POST https://<portal-host>/api/cron/telegram-reminders \
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-- 108 automated Telegram tests use a fake sender + memory stores: fail-closed
+- 111 automated Telegram tests use a fake sender + memory stores: fail-closed
   config, secret-free responses, webhook auth, linking lifecycle, phone
   onboarding (contact ownership, auto-link, self-registration, ambiguous and
   failure paths), in-bot admin review (inline buttons, guards, double-press),

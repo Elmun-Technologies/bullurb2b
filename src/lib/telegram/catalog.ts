@@ -57,6 +57,8 @@ export interface ShopContext {
   sender: TelegramSender;
   /** Null when ShopFlow is not configured — catalog stays honest, not fake. */
   shop: CatalogBackend | null;
+  /** Mini App storefront URL; when set, /katalog opens it instead of buttons. */
+  storefrontUrl: string | null;
   adminChatId: string | null;
   now: Date;
   logger: TelegramClientLogger;
@@ -114,6 +116,25 @@ function parseIndex(raw: string | undefined): number | null {
 }
 
 /* ------------------------------ message texts ------------------------------ */
+
+function buildStorefrontMessage(locale: TelegramLocale): string {
+  return truncateTelegramText(
+    t(
+      locale,
+      '🛒 Do‘konni ochish uchun bosing — mahsulotlar, savat va buyurtma ilova ichida:',
+      '🛒 Нажмите, чтобы открыть магазин — товары, корзина и заказ внутри приложения:',
+    ),
+  );
+}
+
+function storefrontKeyboard(locale: TelegramLocale, url: string): TelegramInlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: t(locale, '🛒 Do‘konni ochish', '🛒 Открыть магазин'), web_app: { url } }],
+      [{ text: t(locale, '📋 Tugmali katalog', '📋 Кнопочный каталог'), callback_data: 'sf:cats' }],
+    ],
+  };
+}
 
 function buildCatalogSoonMessage(locale: TelegramLocale): string {
   return truncateTelegramText(
@@ -430,8 +451,12 @@ async function editScreen(
   }
 }
 
-/** `/katalog` — access-checked by the caller; renders categories or an honest fallback. */
+/** `/katalog` — access-checked by the caller; opens the Mini App store, the button catalog, or an honest fallback. */
 export async function beginCatalog(context: ShopContext, chatId: number, locale: TelegramLocale): Promise<'catalog'> {
+  if (context.storefrontUrl) {
+    await context.sender.sendMessage(chatId, buildStorefrontMessage(locale), { replyMarkup: storefrontKeyboard(locale, context.storefrontUrl) });
+    return 'catalog';
+  }
   if (!context.shop) {
     await context.sender.sendMessage(chatId, buildCatalogSoonMessage(locale));
     return 'catalog';
@@ -470,7 +495,10 @@ async function renderCategories(
   locale: TelegramLocale,
   state: TelegramShopState,
 ): Promise<void> {
-  if (!context.shop) return;
+  if (!context.shop) {
+    await editScreen(context.sender, chatId, messageId, buildCatalogSoonMessage(locale), EMPTY_KEYBOARD);
+    return;
+  }
   let categories = state.categories;
   if (!categories) {
     const fresh = await context.shop.categories(shopLocale(locale));

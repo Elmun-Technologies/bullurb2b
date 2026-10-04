@@ -168,8 +168,10 @@ async function seedApproved(stores: TelegramStores): Promise<void> {
   });
 }
 
-function handle(stores: TelegramStores, sender: TelegramSender, update: TelegramIncomingUpdate, shop: CatalogBackend | null) {
-  return handleTelegramUpdate({ update, stores, sender, botUsername: 'billurb2bbot', linkingSecret: LINKING_SECRET, shop, adminChatId: ADMIN_CHAT_ID, now: NOW });
+const STOREFRONT_URL = 'https://shop-flow.uz/store/billur';
+
+function handle(stores: TelegramStores, sender: TelegramSender, update: TelegramIncomingUpdate, shop: CatalogBackend | null, storefrontUrl: string | null = null) {
+  return handleTelegramUpdate({ update, stores, sender, botUsername: 'billurb2bbot', linkingSecret: LINKING_SECRET, shop, storefrontUrl, adminChatId: ADMIN_CHAT_ID, now: NOW });
 }
 
 describe('shop catalog wiring', () => {
@@ -221,6 +223,40 @@ describe('/katalog access', () => {
     const result = await handle(stores, sender, msg('/katalog'), shop);
     expect(result.action).toBe('awaiting-contact');
     expect(sent[0].text).toContain('raqam');
+  });
+});
+
+describe('storefront mini app', () => {
+  it('opens the Mini App store with a button-catalog fallback', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop, calls } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(stores, sender, msg('/katalog'), shop, STOREFRONT_URL);
+    expect(sent).toHaveLength(1);
+    const markup = sent[0].replyMarkup;
+    expect(markup && 'inline_keyboard' in markup ? markup.inline_keyboard[0][0] : null).toMatchObject({ text: expect.stringContaining('Do‘konni ochish'), web_app: { url: STOREFRONT_URL } });
+    expect(datas(markup)).toContain('sf:cats');
+    // The API catalog is untouched when the Mini App opens.
+    expect(calls.products).toBe(0);
+  });
+
+  it('falls back to buttons without a storefront URL', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(stores, sender, msg('/katalog'), shop, null);
+    expect(datas(sent[0].replyMarkup)).toEqual(['sf:cat:0', 'sf:cat:1']);
+  });
+
+  it('answers the fallback honestly when the API is unconfigured', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { sender, edited } = makeSender();
+    await handle(stores, sender, cb('sf:cats'), null, STOREFRONT_URL);
+    expect(edited).toHaveLength(1);
+    expect(edited[0].text).toContain('tez orada');
   });
 });
 
