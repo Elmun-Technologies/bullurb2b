@@ -13,12 +13,27 @@ import {
   validateProductQuery,
 } from './validation';
 import { isKnownShopFlowEvent, parseShopFlowOrderData, parseShopFlowWebhook, verifyShopFlowSignature } from './webhooks';
+import { listShopFlowOrderEvents, recordShopFlowOrderEvent, resetShopFlowOrderEvents } from './events';
 
 const TEST_KEY = 'sf_TESTKEY_do-not-use-in-production-0123456789abcdef';
 const TEST_BASE = 'https://shopflow.test/api/v1';
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  resetShopFlowOrderEvents();
+});
+
+describe('shopflow order event log', () => {
+  const event = (id: string) => ({ event: 'order.created' as const, orderId: id, timestamp: '2026-10-04T10:00:00.000Z', receivedAt: '2026-10-04T10:00:01.000Z' });
+
+  it('lists newest first and caps the log', () => {
+    recordShopFlowOrderEvent(event('a'));
+    recordShopFlowOrderEvent(event('b'));
+    expect(listShopFlowOrderEvents(5).map((item) => item.orderId)).toEqual(['b', 'a']);
+    expect(listShopFlowOrderEvents(1)).toHaveLength(1);
+    for (let index = 0; index < 250; index += 1) recordShopFlowOrderEvent(event(`x${index}`));
+    expect(listShopFlowOrderEvents(500)).toHaveLength(200);
+  });
 });
 
 function minimalProduct(overrides: Record<string, unknown> = {}) {

@@ -38,10 +38,15 @@ versioned) plus **outbound webhooks** for order events:
   (only user-actionable texts like stock conflicts and variant choices are
   relayed).
 - `POST /api/shopflow/webhook` — verifies HMAC on the raw body with a
-  timing-safe compare, validates `{event, tenantId, timestamp, data}`, and
-  acknowledges. Fanning order events out to Telegram chats still needs the
-  verified customer→chat mapping and durable delivery storage (same Telegram
-  production blockers).
+  timing-safe compare, validates `{event, tenantId, timestamp, data}`, logs
+  verified order events to the in-memory admin feed, and acknowledges.
+  Fanning order events out to Telegram chats still needs the verified
+  customer→chat mapping and durable delivery storage (same Telegram
+  production blockers). **Setup (operator):** ShopFlow admin → outbound
+  webhooks → URL `https://<our-domain>/api/shopflow/webhook`, events
+  `order.created` + `order.status_changed` (+ `order.paid`), secret → save
+  the same secret as `SHOPFLOW_WEBHOOK_SECRET` (`fly secrets set`); a test
+  Mini App purchase must then appear under “Do‘kon buyurtmalari”.
 - Order path (decided): orders are created via ShopFlow `POST /orders`, which
   syncs them into MoySklad. The in-bot catalog reuses this path rather than
   writing MoySklad documents directly.

@@ -1,5 +1,6 @@
 import { IntegrationError } from '@/lib/providers/errors';
 import { requireShopFlowWebhookSecret } from '@/lib/shopflow/config';
+import { recordShopFlowOrderEvent } from '@/lib/shopflow/events';
 import {
   parseShopFlowOrderData,
   parseShopFlowWebhook,
@@ -15,10 +16,11 @@ import {
  * Every call must carry `X-ShopFlow-Signature: sha256=<hex>` over the RAW
  * body; the signature is verified with a timing-safe compare before parsing.
  *
- * Current behavior: verify → validate → acknowledge with the parsed order
- * summary. Fanning out to Telegram chats additionally needs the verified
+ * Verified order events are logged to the in-memory feed (visible in the
+ * admin dashboard); unknown events are acknowledged without action.
+ * Fanning out to Telegram chats additionally needs the verified
  * customer→chat mapping and durable delivery storage (same production
- * blockers as the scheduler path), so no side effects happen yet.
+ * blockers as the scheduler path), so no chat side effects happen yet.
  */
 export const dynamic = 'force-dynamic';
 
@@ -61,5 +63,16 @@ export async function POST(request: Request): Promise<Response> {
   if (!order) {
     return Response.json({ ok: true, event: envelope.event, ignored: true });
   }
+  recordShopFlowOrderEvent({
+    event: envelope.event,
+    orderId: order.id,
+    ...(order.code ? { code: order.code } : {}),
+    ...(order.total !== undefined ? { total: order.total } : {}),
+    ...(order.currency ? { currency: order.currency } : {}),
+    ...(order.status ? { status: order.status } : {}),
+    ...(order.source ? { source: order.source } : {}),
+    timestamp: envelope.timestamp,
+    receivedAt: new Date().toISOString(),
+  });
   return Response.json({ ok: true, event: envelope.event, order: { id: order.id, code: order.code ?? null, status: order.status ?? null } });
 }

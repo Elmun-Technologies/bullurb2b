@@ -1,33 +1,71 @@
-'use client';
-
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { products } from '@/lib/domain/mock-data';
-import { ArrowLeft, ArrowRight, Box, CalendarDays, CircleDollarSign, ExternalLink, Mail, MapPin, PackageCheck, Phone, ShoppingBag, Sparkles, TrendingDown, TrendingUp, Users } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { ArrowLeft, MapPin, Phone, ShoppingBag, User } from 'lucide-react';
+import { PageHeading, StatCard } from '@/components/ui';
+import { getTelegramStores } from '@/lib/telegram/stores';
 
-import { usePortal } from '@/components/portal-context';
-import { getLoyaltySummaryForCustomer } from '@/lib/domain/loyalty';
-import { formatUZS } from '@/lib/domain/pricing';
-import { formatDate } from '@/lib/format/dates';
-import { getSalesOpportunities } from '@/lib/domain/opportunities';
-import { LoyaltyProgress, OrderStatusBadge, PageHeading, StatCard, TierBadge } from '@/components/ui';
+/**
+ * Real client details: one verified application + their bot orders.
+ * The `id` segment is the Telegram chat id. Turnover/tier progress stay
+ * honest placeholders until MoySklad live reads exist.
+ */
 
-export default function ClientDetailsPage() {
-  const params = useParams<{ id: string }>();
-  const { config, allOrders, allCustomers } = usePortal();
-  const customer = allCustomers.find((item) => item.id === params.id);
-  if (!customer) return <div className="not-found-card"><span className="empty-filter-icon"><Users size={21} /></span><h2>Mijoz topilmadi</h2><p>Ushbu identifikatorga mos hamkor mavjud emas.</p><Link href="/admin/clients" className="button secondary">Mijozlarga qaytish</Link></div>;
-  const summary = getLoyaltySummaryForCustomer(customer, config);
-  const clientOrders = allOrders.filter((order) => order.customerId === customer.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
-  const opportunity = getSalesOpportunities([customer], config, new Date('2026-09-28')).find((item) => item.progress);
-  const previousValue = config.metric === 'boxes' ? customer.previousBoxes : (customer.previousTurnover ?? 0);
-  const drop = previousValue > 0 && summary.currentValue < previousValue * 0.65;
+export const dynamic = 'force-dynamic';
+
+export default async function ClientDetailsPage(context: { params: Promise<{ id: string }> }) {
+  const chatId = Number((await context.params).id);
+  if (!Number.isInteger(chatId)) notFound();
+
+  let application = null;
+  let orders: Awaited<ReturnType<ReturnType<typeof getTelegramStores>['botOrders']['listRecent']>> = [];
+  try {
+    const stores = getTelegramStores();
+    application = await stores.applications.getByChatId(chatId);
+    orders = (await stores.botOrders.listRecent(200)).filter((order) => order.chatId === chatId);
+  } catch {
+    notFound();
+  }
+  if (!application) notFound();
+
+  const statusLabel = application.status === 'approved' ? 'Tasdiqlangan ✅' : application.status === 'pending' ? 'Kutilmoqda ⏳' : 'Rad etilgan';
+
   return <>
-    <PageHeading eyebrow="MIJOZ PROFILI" title={customer.name} description={`${customer.region} · B2B hamkor ${customer.id.toUpperCase()}`} actions={<Link href="/admin/clients" className="button ghost"><ArrowLeft size={16} /> Mijozlar ro‘yxati</Link>} />
-    <section className="client-profile-banner"><span className="client-profile-avatar">{customer.name.slice(0, 1)}</span><div className="client-profile-main"><span className="section-kicker">HAMKOR KOMPANIYA</span><h2>{customer.name}</h2><span><MapPin size={14} /> {customer.region} <i>·</i> Menejer: {customer.manager}</span></div><div className="client-profile-tier"><TierBadge tier={summary.currentTier} size="large" /><b>{summary.discountPercent}% chegirma</b></div><span className={`client-active-state ${customer.active ? '' : 'inactive'}`}><i />{customer.active ? 'Faol' : 'Faol emas'}</span></section>
-    <div className="client-contact-strip"><span><Users size={15} /> {customer.contactName}</span><a href={`tel:${customer.phone}`}><Phone size={14} /> {customer.phone}</a><a href={`mailto:${customer.email}`}><Mail size={14} /> {customer.email}</a><span><CalendarDays size={14} /> Oxirgi xarid: {formatDate(customer.lastPurchase)}</span></div>
-    <div className="stat-grid four client-detail-stats"><StatCard label="Tanlangan davr xaridi" value={config.metric === 'boxes' ? `${summary.currentValue} quti` : formatUZS(summary.currentValue)} note="Yetkazilgan mahsulotlar" icon={<Box size={18} />} tone="mint" /><StatCard label="Joriy oy aylanmasi" value={formatUZS(customer.currentTurnover)} note="Tovar aylanmasi" icon={<CircleDollarSign size={18} />} tone="blue" /><StatCard label={config.metric === 'boxes' ? "O‘tgan oy hajmi" : "O‘tgan oy aylanmasi"} value={config.metric === 'boxes' ? `${customer.previousBoxes} quti` : formatUZS(customer.previousTurnover ?? 0)} note={drop ? <span className="stat-negative"><TrendingDown size={13} /> Kamaygan</span> : <span className="stat-positive"><TrendingUp size={13} /> Barqaror</span>} icon={<TrendingUp size={18} />} tone="amber" /><StatCard label="Buyurtmalar" value={String(clientOrders.length)} note="So‘nggi 5 tasi ko‘rsatilgan" icon={<ShoppingBag size={18} />} tone="violet" /></div>
-    <div className="client-detail-grid"><section className="surface client-progress-card"><div className="section-header"><div><div className="section-kicker">LOYALLIK DASTURI</div><h3>Xarid progressi</h3></div><span className="period-chip">{config.period === 'calendar-month' ? "Sentyabr 2026" : config.period === 'last-30-days' ? "Oxirgi 30 kun" : "Oxirgi 90 kun"}</span></div><div className="client-level-overview"><div><TierBadge tier={summary.currentTier} size="large" /><span className="client-level-current">Joriy daraja</span></div><div className="client-level-arrow"><ArrowRight size={20} /></div><div>{summary.nextTier ? <><TierBadge tier={summary.nextTier} /><span className="client-level-next">Keyingi daraja · {summary.nextTier.discountPercent}%</span></> : <span className="client-level-next">Eng yuqori bosqich</span>}</div><div className="client-level-remaining"><strong>{config.metric === 'boxes' ? summary.remaining.toLocaleString('uz-UZ') : formatUZS(summary.remaining)}</strong><span>{config.metric === 'boxes' ? 'quti qoldi' : 'so‘m qoldi'}</span></div></div><LoyaltyProgress summary={summary} caption={config.metric === 'boxes' ? `${summary.currentValue} quti xarid qilingan` : `${formatUZS(summary.currentValue)} xarid aylanmasi`} /><div className="client-tier-info-row"><span><small>CHEGIRMA</small><b>{summary.discountPercent}%</b></span><span><small>KEYINGI CHEGIRMA</small><b>{summary.nextTier?.discountPercent ?? summary.discountPercent}%</b></span><span><small>O‘ZGARISH</small><b>Darhol faollashadi</b></span></div></section><section className="surface sales-opportunity-detail"><div className="section-header"><div><div className="section-kicker">SAVDO IMKONIYATI</div><h3>Menejer uchun tavsiya</h3></div><Sparkles size={17} className="opportunity-spark" /></div>{opportunity ? <><div className="opportunity-highlight"><span className="opportunity-priority high">{opportunity.priority} ustuvorlik</span><h4>{opportunity.headline}</h4><p>{opportunity.detail}</p></div><div className="suggested-action"><span><ArrowRight size={16} /></span><p><small>TAKLIF ETILADIGAN HARAKAT</small><b>{opportunity.action}</b></p></div></> : <div className="opportunity-highlight"><h4>{drop ? 'Xarid hajmi pasayishi kuzatilmoqda' : 'Hozircha faol imkoniyat yo‘q'}</h4><p>{drop ? 'Mijozning joriy xaridlari o‘tgan davrga nisbatan pasaygan.' : 'Mijozning joriy darajadagi xaridlari barqaror.'}</p></div>}<a className="manager-contact-action" href={`tel:${customer.phone}`}><Phone size={15} /> Mijozga qo‘ng‘iroq qilish</a></section></div>
-    <div className="client-detail-grid lower-client-grid"><section className="surface client-orders-card"><div className="section-header"><div><div className="section-kicker">MOYSKLAD BUYURTMALARI</div><h3>So‘nggi buyurtmalar</h3></div><Link href="/admin" className="text-link">Barchasi <ArrowRight size={14} /></Link></div>{clientOrders.length ? <div className="client-order-list">{clientOrders.map((order) => <div className="client-order-row" key={order.id}><span className="client-order-icon"><PackageCheck size={15} /></span><span className="client-order-id"><b>{order.id}</b><small>{formatDate(order.date)} · {order.boxes} quti</small></span><OrderStatusBadge status={order.status} /><b className="client-order-sum">{formatUZS(order.total)}</b></div>)}</div> : <div className="table-empty">Hozircha buyurtmalar mavjud emas.</div>}</section><section className="surface client-pricing-card"><div className="section-header"><div><div className="section-kicker">SHAHSIY NARXLAR</div><h3>Mijoz narxlari</h3></div><span className="price-tag-label">{products.filter((product) => product.specialPrices?.[customer.id]).length} kelishuv</span></div><p className="pricing-card-copy">Loyallik chegirmasi {summary.discountPercent}%. Kelishilgan maxsus narxlar ushbu chegirmadan ustun qo‘llanadi.</p><div className="special-price-list">{products.filter((product) => product.specialPrices?.[customer.id]).map((product) => <div key={product.id}><span><b>{product.name}</b><small>{product.sku} · maxsus kelishuv</small></span><strong>{formatUZS(product.specialPrices![customer.id])}</strong></div>)}</div><button className="button secondary full" disabled>Yangi narx sozlash <ExternalLink size={14} /></button><small className="readonly-caption">Narxlar MoySklad / Shopflow ulanishi aniqlangach ko‘rsatiladi.</small></section></div>
+    <PageHeading
+      eyebrow="MIJOZ TAFSILOTI"
+      title={application.company}
+      description={`${application.name} · ro‘yxat: ${application.createdAt.slice(0, 10)}`}
+      actions={<Link href="/admin/clients" className="button secondary"><ArrowLeft size={16} /> Mijozlar</Link>}
+    />
+    <div className="stat-grid four admin-stats">
+      <StatCard label="Holat" value={statusLabel} note="Ariza holati" icon={<User size={18} />} tone="mint" />
+      <StatCard label="Telefon" value={application.phone} note="Tasdiqlangan raqam" icon={<Phone size={18} />} tone="blue" />
+      <StatCard label="Bot buyurtmalari" value={String(orders.length)} note="Tugmali katalog orqali" icon={<ShoppingBag size={18} />} tone="amber" />
+      <StatCard label="Manzil" value={application.address.length > 24 ? `${application.address.slice(0, 24)}…` : application.address} note="Ro‘yxatdagi manzil" icon={<MapPin size={18} />} tone="violet" />
+    </div>
+    <div className="admin-grid">
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">BUYURTMALAR</div><h3>Bot buyurtmalari tarixi</h3></div></div>
+        {orders.length === 0 ? (
+          <p className="muted-text">Bu mijoz hali bot orqali buyurtma bermagan.</p>
+        ) : (
+          <div className="near-client-list">
+            {orders.map((order) => (
+              <div className="near-client-row" key={order.orderId}>
+                <span className="near-client-avatar"><ShoppingBag size={15} /></span>
+                <span className="near-client-name"><b>{order.productName}{order.variantName ? ` (${order.variantName})` : ''} × {order.quantity}</b><small>{order.orderMessage} · {order.method === 'courier' ? 'Kuryer' : 'Olib ketish'}</small></span>
+                <span className="near-client-remaining">{order.createdAt.slice(0, 10)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">SODIQLIK</div><h3>Daraja progressi</h3></div></div>
+        <p className="muted-text">Aylanma, daraja va chegirma progressi MoySklad jonli o‘qishlari ulangach shu yerda chiqadi. Dastur sozlamalari: <Link href="/admin/loyalty" className="text-link">Sodiqlik darajalari</Link>.</p>
+        {application.location && (
+          <p className="muted-text">Lokatsiya: {application.location.latitude}, {application.location.longitude}</p>
+        )}
+      </section>
+    </div>
   </>;
 }

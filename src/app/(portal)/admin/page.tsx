@@ -3,6 +3,7 @@ import { ArrowRight, BellRing, Building2, CheckCircle2, Clock3, FileText, PlugZa
 import { PageHeading, StatCard } from '@/components/ui';
 import { ShopFlowClient } from '@/lib/shopflow/client';
 import { isShopFlowConfigured, requireShopFlowConfig } from '@/lib/shopflow/config';
+import { listShopFlowOrderEvents } from '@/lib/shopflow/events';
 import { getTelegramServerConfig } from '@/lib/telegram/config';
 import { getTelegramStores } from '@/lib/telegram/stores';
 import type { TelegramBotOrder, TelegramRegistrationApplication } from '@/lib/telegram/types';
@@ -54,6 +55,7 @@ async function loadShopFlow(): Promise<{ configured: boolean; categories: number
 
 export default async function AdminDashboardPage() {
   const [telegram, shopflow] = await Promise.all([loadTelegram(), loadShopFlow()]);
+  const storeOrders = listShopFlowOrderEvents(5);
   const telegramStatus = getTelegramServerConfig().status;
   const moyskladLive = process.env.MOYSKLAD_MODE === 'live';
 
@@ -120,6 +122,23 @@ export default async function AdminDashboardPage() {
     </div>
 
     <div className="admin-grid">
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">DO‘KON BUYURTMALARI</div><h3>ShopFlow (Mini App savdosi)</h3></div></div>
+        {storeOrders.length === 0 ? (
+          <p className="muted-text">Hali do‘kon buyurtmasi kelmadi. ShopFlow admin → outbound webhook: bu server URLi + <b>order.created</b> + secret (<b>SHOPFLOW_WEBHOOK_SECRET</b>). Yordam: <b>SHOPFLOW_INTEGRATION.md</b>.</p>
+        ) : (
+          <div className="near-client-list">
+            {storeOrders.map((item, index) => (
+              <div className="near-client-row" key={`${item.orderId}-${index}`}>
+                <span className="near-client-avatar"><ShoppingBag size={15} /></span>
+                <span className="near-client-name"><b>{item.code ?? item.orderId}</b><small>{item.event} · {item.status ?? '—'}{item.source ? ` · ${item.source}` : ''}</small></span>
+                <span className="near-client-remaining">{item.total !== undefined ? item.total.toLocaleString('uz-UZ') : '—'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="surface">
         <div className="section-header"><div><div className="section-kicker">INTEGRATSIYALAR</div><h3>Ulanish holati</h3></div><PlugZap size={17} /></div>
         <div className="tier-distribution-list">

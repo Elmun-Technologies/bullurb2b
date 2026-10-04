@@ -7,6 +7,7 @@ import { POST as ordersPOST } from '@/app/api/shopflow/orders/route';
 import { GET as productsGET } from '@/app/api/shopflow/products/route';
 import { GET as productGET } from '@/app/api/shopflow/products/[slug]/route';
 import { POST as shopflowWebhookPOST } from '@/app/api/shopflow/webhook/route';
+import { listShopFlowOrderEvents, resetShopFlowOrderEvents } from './events';
 
 const TEST_KEY = 'sf_ROUTEKEY_do-not-use-in-production-abcdef0123456789';
 const TEST_BASE = 'https://shopflow.test/api/v1';
@@ -35,6 +36,7 @@ function validOrderBody() {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  resetShopFlowOrderEvents();
 });
 
 describe('shopflow bff proxy routes', () => {
@@ -149,5 +151,23 @@ describe('shopflow outbound webhook route', () => {
     const ignored = await postEvent(unknown, sign(unknown));
     expect(ignored.status).toBe(200);
     expect(await ignored.json()).toMatchObject({ ok: true, ignored: true });
+  });
+
+  it('logs verified order events for the admin feed', async () => {
+    stubShopFlowEnv();
+    const raw = JSON.stringify({
+      event: 'order.created',
+      tenantId: 'tenant-1',
+      timestamp: '2026-10-04T10:00:00.000Z',
+      data: { order: { id: 'ord-9', code: 'ORD-9', total: 120000, currency: 'UZS', status: 'PENDING', source: 'MINI_APP' } },
+    });
+    expect((await postEvent(raw, sign(raw))).status).toBe(200);
+    const logged = listShopFlowOrderEvents(5);
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ event: 'order.created', orderId: 'ord-9', code: 'ORD-9', total: 120000, status: 'PENDING', source: 'MINI_APP' });
+
+    const unknown = JSON.stringify({ event: 'order.deleted', tenantId: 't', timestamp: 'x', data: {} });
+    expect((await postEvent(unknown, sign(unknown))).status).toBe(200);
+    expect(listShopFlowOrderEvents(5)).toHaveLength(1);
   });
 });
