@@ -1,0 +1,25 @@
+# External scheduler for stage-based client follow-ups (bot-data only, no
+# MoySklad needed). Runs daily at 04:30 UTC = 09:30 Asia/Tashkent; the
+# dispatcher enforces one message per chat per run + cooldowns + caps, so
+# re-runs are safe. Required repository secrets: APP_URL
+# (e.g. https://bullurb2b.fly.dev), TELEGRAM_CRON_SECRET (same value as the
+# Fly secret).
+name: telegram-followups
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger follow-up dispatch
+        run: |
+          curl --fail-with-body --max-time 120 -X POST "$APP_URL/api/cron/telegram-followups" \
+            -H "Authorization: Bearer $TELEGRAM_CRON_SECRET"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          TELEGRAM_CRON_SECRET: ${{ secrets.TELEGRAM_CRON_SECRET }}

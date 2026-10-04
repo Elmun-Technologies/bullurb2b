@@ -1,0 +1,25 @@
+# External scheduler for Telegram reminders (Fly has no managed cron with
+# exact times, so GitHub Actions triggers the authenticated endpoint).
+# Runs daily at 04:00 UTC = 09:00 Asia/Tashkent; the dispatcher itself decides
+# Friday greetings / weekly caps and is idempotent, so re-runs are safe.
+# Required repository secrets: APP_URL (e.g. https://bullurb2b.fly.dev),
+# TELEGRAM_CRON_SECRET (same value as the Fly secret).
+name: telegram-reminders
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger reminder dispatch
+        run: |
+          curl --fail-with-body --max-time 120 -X POST "$APP_URL/api/cron/telegram-reminders" \
+            -H "Authorization: Bearer $TELEGRAM_CRON_SECRET"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          TELEGRAM_CRON_SECRET: ${{ secrets.TELEGRAM_CRON_SECRET }}

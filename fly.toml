@@ -1,0 +1,31 @@
+# Fly.io deployment for the Baraka B2B loyalty portal + Telegram bot webhook.
+# Region fra (Frankfurt) is the closest to Tashkent; `fly launch` will confirm
+# the app name (change it here if `bullurb2b` is taken) and region.
+app = 'bullurb2b'
+primary_region = 'fra'
+
+[build]
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  # Telegram POSTs webhooks at any moment, so one machine always stays warm.
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    grace_period = '15s'
+    interval = '30s'
+    method = 'GET'
+    # NOTE: `/` returns a 307 redirect to /dashboard, which fails HTTP checks
+    # (Fly requires 2xx). The status endpoint is authless and always 200.
+    path = '/api/telegram/status'
+    protocol = 'http'
+    timeout = '10s'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

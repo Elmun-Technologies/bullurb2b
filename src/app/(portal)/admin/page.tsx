@@ -1,32 +1,159 @@
-'use client';
-
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, Box, Building2, CircleDollarSign, Crown, FileText, Sparkles } from 'lucide-react';
-import { PageHeading, StatCard, TierBadge } from '@/components/ui';
-import { getLoyaltySummaryForCustomer } from '@/lib/domain/loyalty';
-import { formatUZS } from '@/lib/domain/pricing';
-import { getSalesOpportunities } from '@/lib/domain/opportunities';
-import { usePortal } from '@/components/portal-context';
+import { ArrowRight, BellRing, Building2, CheckCircle2, Clock3, FileText, ShoppingBag } from 'lucide-react';
+import { PageHeading, StatCard } from '@/components/ui';
+import { ShopFlowClient } from '@/lib/shopflow/client';
+import { isShopFlowConfigured, requireShopFlowConfig } from '@/lib/shopflow/config';
+import { listShopFlowOrderEvents } from '@/lib/shopflow/events';
+import { getTelegramServerConfig } from '@/lib/telegram/config';
+import { getTelegramStores } from '@/lib/telegram/stores';
+import type { TelegramBotOrder, TelegramRegistrationApplication } from '@/lib/telegram/types';
 
-export default function AdminDashboardPage() {
-  const { config, allOrders, allCustomers } = usePortal();
-  const delivered = allOrders.filter((order) => order.status === 'Yetkazildi');
-  const monthlySales = allCustomers.reduce((sum, customer) => sum + customer.currentTurnover, 0);
-  const monthBoxes = allCustomers.reduce((sum, customer) => sum + customer.currentBoxes, 0);
-  const opportunities = getSalesOpportunities(allCustomers, config, new Date('2026-09-28'));
-  const nearTier = opportunities.filter((item) => item.progress && item.type !== 'TIER_DOWNGRADE_RISK').slice(0, 5);
-  const tierCounts = config.tiers.filter((tier) => tier.active).map((tier) => {
-    const count = allCustomers.filter((customer) => getLoyaltySummaryForCustomer(customer, config).currentTier.id === tier.id).length;
-    return { tier, count, percent: Math.round(count / allCustomers.length * 100) };
-  });
-  const top = allCustomers.slice().sort((a, b) => b.currentTurnover - a.currentTurnover).slice(0, 5);
-  const bars = [46, 56, 49, 70, 62, 77, 68, 90, 75, 82, 67, 94];
+/**
+ * Operations dashboard — 100% live data, zero demo numbers.
+ *
+ * Widgets read the real pilot stores (Telegram applications, bot orders),
+ * the live ShopFlow catalog and the integration statuses. Sales analytics
+ * stay an honest placeholder until MoySklad live reads exist.
+ */
+
+export const dynamic = 'force-dynamic';
+
+function formatDateTime(iso: string): string {
+  const [date = '', time = ''] = iso.split('T');
+  return `${date} ${time.slice(0, 5)}`;
+}
+
+async function loadTelegram(): Promise<{ pending: TelegramRegistrationApplication[]; approved: TelegramRegistrationApplication[]; orders: TelegramBotOrder[]; available: boolean }> {
+  try {
+    const stores = getTelegramStores();
+    const [pending, approved, orders] = await Promise.all([
+      stores.applications.listByStatus('pending'),
+      stores.applications.listByStatus('approved'),
+      stores.botOrders.listRecent(8),
+    ]);
+    return { pending, approved, orders, available: true };
+  } catch {
+    return { pending: [], approved: [], orders: [], available: false };
+  }
+}
+
+async function loadShopFlow(): Promise<{ configured: boolean; categories: number; products: number; promotions: number }> {
+  if (!isShopFlowConfigured()) return { configured: false, categories: 0, products: 0, promotions: 0 };
+  try {
+    const config = requireShopFlowConfig();
+    const client = new ShopFlowClient(config.baseUrl, config.apiKey);
+    const [categories, products, promotions] = await Promise.all([
+      client.categories('uz'),
+      client.products({ page: 1, pageSize: 1 }),
+      client.promotions(),
+    ]);
+    return { configured: true, categories: categories.length, products: products.total, promotions: promotions.length };
+  } catch {
+    return { configured: true, categories: 0, products: 0, promotions: 0 };
+  }
+}
+
+export default async function AdminDashboardPage() {
+  const [telegram, shopflow] = await Promise.all([loadTelegram(), loadShopFlow()]);
+  const storeOrders = listShopFlowOrderEvents(5);
+  const telegramStatus = getTelegramServerConfig().status;
+  const moyskladLive = process.env.MOYSKLAD_MODE === 'live';
 
   return <>
-    <PageHeading eyebrow="HAMKORLIK ANALITIKASI" title="Boshqaruv paneli" description="B2B mijozlar faolligi va sodiqlik dasturi bo‘yicha umumiy ko‘rinish." actions={<Link href="/admin/loyalty" className="button secondary"><Sparkles size={16} /> Dastur sozlamalari</Link>} />
-    <div className="admin-data-notice"><span className="demo-dot" /><span><b>Demo ma’lumotlar</b> · Ko‘rsatkichlar namuna uchun yaratilgan. MoySklad sinxronizatsiyasi ulanmagan.</span><Link href="/admin/clients">Mijozlarni ko‘rish <ArrowRight size={14} /></Link></div>
-    <div className="stat-grid four admin-stats"><StatCard label="Faol B2B mijozlar" value={`${allCustomers.filter((customer) => customer.active).length}`} note="Jami ro‘yxatdan o‘tganlar" icon={<Building2 size={18} />} tone="mint" /><StatCard label="Joriy oy savdosi" value={formatUZS(monthlySales)} note={<><ArrowUpRight size={13} /> 8.4% o‘tgan oyga nisbatan</>} icon={<CircleDollarSign size={18} />} tone="blue" /><StatCard label="Sotilgan qutilar" value={`${monthBoxes.toLocaleString('uz-UZ')}`} note="Joriy hisob-kitob davri" icon={<Box size={18} />} tone="amber" /><StatCard label="Yetkazilgan buyurtmalar" value={String(delivered.length)} note="Joriy demo dataset" icon={<FileText size={18} />} tone="violet" /></div>
-    <div className="admin-grid"><section className="surface admin-sales-chart"><div className="section-header"><div><div className="section-kicker">SAVDO DINAMIKASI</div><h3>Oylik B2B aylanmasi</h3></div><span className="period-chip">Oxirgi 12 oy</span></div><div className="admin-chart-total"><b>{formatUZS(monthlySales)}</b><span className="trend-positive"><ArrowUpRight size={14} /> 8.4%</span></div><div className="admin-bars">{bars.map((height, index) => <div key={index} className="admin-bar-column"><span className={index === 11 ? 'active' : ''} style={{ height: `${height}%` }} /><small>{['Okt', 'Noy', 'Dek', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen'][index]}</small></div>)}</div></section><section className="surface tier-distribution"><div className="section-header"><div><div className="section-kicker">MIJOZLAR TAQSIMOTI</div><h3>Sodiqlik darajalari</h3></div><Link href="/admin/clients" className="icon-link" aria-label="Mijozlarni ko‘rish"><ArrowRight size={16} /></Link></div><div className="tier-distribution-bar">{tierCounts.map(({ tier, percent }) => <span key={tier.id} style={{ width: `${percent}%`, backgroundColor: tier.color }} />)}</div><div className="tier-distribution-list">{tierCounts.map(({ tier, count, percent }) => <Link href={`/admin/clients?tier=${tier.id}`} key={tier.id} className="tier-distribution-item"><span className="tier-dot" style={{ background: tier.color }} /><TierBadge tier={tier} /><span>{count} <small>({percent}%)</small></span></Link>)}</div></section></div>
-    <div className="admin-grid lower-admin-grid"><section className="surface opportunity-table-card"><div className="section-header"><div><div className="section-kicker">SAVDO IMKONIYATLARI</div><h3>Keyingi darajaga yaqin mijozlar</h3><p>Birgalikda qo‘shimcha qiymat yaratish imkoniyati.</p></div><Link href="/admin/opportunities" className="text-link">Barchasi <ArrowRight size={14} /></Link></div><div className="near-client-list">{nearTier.map((item) => { const summary = getLoyaltySummaryForCustomer(item.customer, config); return <Link href={`/admin/clients/${item.customer.id}`} className="near-client-row" key={`${item.customer.id}-${item.type}`}><span className="near-client-avatar">{item.customer.name.slice(0, 1)}</span><span className="near-client-name"><b>{item.customer.name}</b><small>{item.customer.region}</small></span><span className="near-client-progress"><span>{config.metric === 'boxes' ? `${summary.currentValue} / ${summary.nextThreshold} quti` : `${formatUZS(summary.currentValue)} / ${formatUZS(summary.nextThreshold ?? 0)}`}</span><i><b style={{ width: `${summary.progressPercent}%` }} /></i></span><TierBadge tier={summary.currentTier} /><span className="near-client-remaining">{config.metric === 'boxes' ? `${summary.remaining} quti` : formatUZS(summary.remaining)} <small>→ {summary.nextTier?.name}</small></span><ArrowRight size={15} className="near-client-arrow" /></Link>; })}</div></section><section className="surface top-clients-card"><div className="section-header"><div><div className="section-kicker">HAMKORLAR</div><h3>Top mijozlar</h3></div><Crown size={17} className="crown-icon" /></div><div className="top-client-list">{top.map((customer, index) => { const summary = getLoyaltySummaryForCustomer(customer, config); return <Link href={`/admin/clients/${customer.id}`} key={customer.id} className="top-client-row"><span className={`rank-number rank-${index + 1}`}>{String(index + 1).padStart(2, '0')}</span><span className="top-client-info"><b>{customer.name}</b><small>{customer.region}</small></span><TierBadge tier={summary.currentTier} /><strong>{formatUZS(customer.currentTurnover)}</strong></Link>; })}</div></section></div>
+    <PageHeading
+      eyebrow="OPERATSIYA"
+      title="Boshqaruv paneli"
+      description="Jonli ko‘rsatkichlar: arizalar, bot buyurtmalari, katalog va integratsiyalar holati."
+      actions={<Link href="/admin/telegram" className="button secondary"><BellRing size={16} /> Telegram arizalar</Link>}
+    />
+
+    {!telegram.available && (
+      <div className="admin-data-notice"><span className="demo-dot" /><span><b>Ma’lumotlar vaqtincha ko‘rinmayapti</b> · Keyinroq qayta urinib ko‘ring.</span></div>
+    )}
+
+    <div className="stat-grid four admin-stats">
+      <StatCard label="Kutilayotgan arizalar" value={String(telegram.pending.length)} note="Tasdiqlashni kutyapti" icon={<Clock3 size={18} />} tone="amber" />
+      <StatCard label="Tasdiqlangan mijozlar" value={String(telegram.approved.length)} note="Jami tasdiqlangan" icon={<Building2 size={18} />} tone="mint" />
+      <StatCard label="Bot buyurtmalari" value={String(telegram.orders.length)} note="So‘nggi 8 ta ichida" icon={<ShoppingBag size={18} />} tone="blue" />
+      <StatCard
+        label="Katalog mahsulotlari"
+        value={shopflow.configured ? String(shopflow.products) : '—'}
+        note={shopflow.configured ? `${shopflow.categories} kategoriya · ${shopflow.promotions} aksiya` : 'ShopFlow ulanmagan'}
+        icon={<FileText size={18} />}
+        tone="violet"
+      />
+    </div>
+
+    <div className="admin-grid">
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">ARIZALAR</div><h3>So‘nggi arizalar</h3></div><Link href="/admin/telegram" className="text-link">Barchasi <ArrowRight size={14} /></Link></div>
+        {telegram.pending.length === 0 ? (
+          <p className="muted-text">Kutilayotgan ariza yo‘q. Yangi ariza botda <b>/start</b> orqali keladi.</p>
+        ) : (
+          <div className="live-list">
+            {telegram.pending.slice(0, 5).map((item) => (
+              <Link href="/admin/telegram" className="live-row has-arrow" key={item.chatId}>
+                <span className="near-client-avatar">{item.company.slice(0, 1)}</span>
+                <span className="near-client-name"><b>{item.company}</b><small>{item.name} · {item.phone}</small></span>
+                <span className="live-meta">{formatDateTime(item.createdAt)}</span>
+                <ArrowRight size={15} className="live-arrow" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">BOT BUYURTMALAR</div><h3>So‘nggi buyurtmalar</h3></div></div>
+        {telegram.orders.length === 0 ? (
+          <p className="muted-text">Hali bot buyurtmasi yo‘q. Mijoz <b>/katalog</b> orqali buyurtma beradi.</p>
+        ) : (
+          <div className="live-list">
+            {telegram.orders.slice(0, 5).map((order) => (
+              <div className="live-row" key={order.orderId}>
+                <span className="near-client-avatar"><ShoppingBag size={15} /></span>
+                <span className="near-client-name"><b>{order.productName}{order.variantName ? ` (${order.variantName})` : ''} × {order.quantity}</b><small>{order.company} · {order.method === 'courier' ? 'Kuryer' : 'Olib ketish'}</small></span>
+                <span className="live-meta">{formatDateTime(order.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+
+    <div className="admin-grid">
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">DO‘KON BUYURTMALARI</div><h3>ShopFlow (Mini App savdosi)</h3></div></div>
+        {storeOrders.length === 0 ? (<>
+          <p className="muted-text">Hali do‘kon buyurtmasi kelmadi. Sinov xaridi qilsangiz — shu yerda chiqadi.</p>
+          <details className="hint-details"><summary>Ulash bo‘yicha ko‘rsatma</summary><p>ShopFlow admin → outbound webhook: bu server URLi + <b>order.created</b> + secret. Batafsil: <b>SHOPFLOW_INTEGRATION.md</b>.</p></details>
+        </>) : (
+          <div className="live-list">
+            {storeOrders.map((item, index) => (
+              <div className="live-row" key={`${item.orderId}-${index}`}>
+                <span className="near-client-avatar"><ShoppingBag size={15} /></span>
+                <span className="near-client-name"><b>{item.code ?? item.orderId}</b><small>{item.event} · {item.status ?? '—'}{item.source ? ` · ${item.source}` : ''}</small></span>
+                <span className="live-meta">{item.total !== undefined ? item.total.toLocaleString('uz-UZ') : '—'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">INTEGRATSIYALAR</div><h3>Ulanish holati</h3></div></div>
+        <div className="tier-distribution-list">
+          <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>Telegram bot</b><span>{telegramStatus === 'ready' ? 'Faol ✅' : telegramStatus === 'disabled' ? 'O‘chiq' : 'Sozlanmagan'}</span></div>
+          <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>ShopFlow</b><span>{shopflow.configured ? `Ulangan ✅ (${shopflow.products} mahsulot)` : 'Ulanmagan'}</span></div>
+          <div className="tier-distribution-item"><CheckCircle2 size={16} /><b>MoySklad</b><span>{moyskladLive ? 'Jonli ✅' : 'Test rejimi'}</span></div>
+        </div>
+      </section>
+
+      <section className="surface">
+        <div className="section-header"><div><div className="section-kicker">SAVDO ANALITIKASI</div><h3>Oylik aylanma</h3></div></div>
+        <p className="muted-text">Savdo tarixi ulangach shu yerda avtomatik chiqadi. Hozircha bo‘sh.</p>
+        <p><Link href="/admin/telegram" className="text-link">Arizalarni ko‘rish <ArrowRight size={14} /></Link></p>
+      </section>
+    </div>
   </>;
 }

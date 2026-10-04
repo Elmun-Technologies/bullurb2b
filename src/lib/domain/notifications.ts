@@ -1,6 +1,7 @@
 import type { Customer, LoyaltyConfig, Role, SalesOrder } from './types';
 import { getLoyaltySummaryForCustomer } from './loyalty';
 import { getSalesOpportunities } from './opportunities';
+import { dateKeyInTimezone, isFridayInTimezone } from '@/lib/telegram/schedule';
 import { uz } from '@/messages/uz';
 
 export interface PortalNotification {
@@ -25,7 +26,7 @@ export function getPortalNotifications(input: {
   const result: PortalNotification[] = [];
 
   if (role === 'CLIENT') {
-    if (new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: config.timezone }).format(now) === 'Fri') {
+    if (isFridayInTimezone(now, config.timezone)) {
       result.push({ id: `friday:${date}:${customer.id}`, kind: 'FRIDAY_GREETING', title: uz.reminders.fridayTitle, message: uz.reminders.fridayMessage(customer.name), href: '/dashboard', date });
     }
     const summary = getLoyaltySummaryForCustomer(customer, config);
@@ -54,14 +55,6 @@ export function getPortalNotifications(input: {
 
 function formatGap(value: number, metric: LoyaltyConfig['metric']): string {
   return metric === 'boxes' ? `${value.toLocaleString('uz-UZ')} quti` : `${new Intl.NumberFormat('uz-UZ').format(value)} so‘m`;
-}
-
-function dateKeyInTimezone(date: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
-  const month = parts.find((part) => part.type === 'month')?.value ?? '00';
-  const day = parts.find((part) => part.type === 'day')?.value ?? '00';
-  return `${year}-${month}-${day}`;
 }
 
 function formatUZS(value: number): string {
