@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ShopFlowApiError } from '@/lib/shopflow/client';
 import type { ShopFlowCategory, ShopFlowOrderRequest, ShopFlowProduct, ShopFlowProductList, ShopFlowPromotion } from '@/lib/shopflow/types';
 import type { TelegramSender } from './dispatcher';
-import { buildApplicationApprovedMessage, buildApprovedMenuMessage, buildHelpMessage } from './messages';
+import { decideApplication } from './admin';
+import { buildApplicationApprovedMessage, buildHelpMessage } from './messages';
+import { buildMainMenuKeyboard, buildMainMenuMessage } from './menu';
 import { createMemoryTelegramStores, resetMemoryTelegramStores, type TelegramStores } from './stores';
 import type { CatalogBackend } from './catalog';
 import { parseTelegramCommand, TELEGRAM_ALLOWED_UPDATES } from './webhook';
@@ -61,7 +63,7 @@ function cb(data: string, overrides: { fromId?: number; chatId?: number; message
 
 function datas(markup: TelegramReplyMarkup | undefined): string[] {
   if (!markup || !('inline_keyboard' in markup)) return [];
-  return markup.inline_keyboard.flat().map((button) => (button as { callback_data: string }).callback_data);
+  return markup.inline_keyboard.flat().map((button) => button.callback_data).filter((data): data is string => typeof data === 'string');
 }
 
 const CATEGORIES: ShopFlowCategory[] = [
@@ -186,11 +188,18 @@ describe('shop catalog wiring', () => {
     expect([...TELEGRAM_ALLOWED_UPDATES]).toContain('callback_query');
   });
 
-  it('approval, menu and help point to /katalog', () => {
-    expect(buildApplicationApprovedMessage('uz', 'Ali Market')).toContain('/katalog');
-    expect(buildApplicationApprovedMessage('ru', 'Ali Market')).toContain('/katalog');
-    expect(buildApprovedMenuMessage('uz', 'Ali Market')).toContain('/katalog');
-    expect(buildHelpMessage('uz')).toContain('/katalog');
+  it('approval, menu and help point to buttons', () => {
+    expect(buildApplicationApprovedMessage('uz', 'Ali Market')).toContain('/menu');
+    expect(buildApplicationApprovedMessage('ru', 'Ali Market')).toContain('кнопках');
+    expect(buildMainMenuMessage('uz', 'Ali Market')).toContain('Ali Market');
+    expect(buildMainMenuKeyboard('uz', STOREFRONT_URL).inline_keyboard).toHaveLength(4);
+    expect(buildHelpMessage('uz')).toContain('/menu');
+  });
+
+  it('parses /menu and /menyu', () => {
+    expect(parseTelegramCommand('/menu', 'billurb2bbot').command).toBe('menu');
+    expect(parseTelegramCommand('/menyu', null).command).toBe('menu');
+    expect(parseTelegramCommand('/menu@otherbot', 'billurb2bbot').command).toBe('unknown');
   });
 });
 
@@ -257,6 +266,94 @@ describe('storefront mini app', () => {
     await handle(stores, sender, cb('sf:cats'), null, STOREFRONT_URL);
     expect(edited).toHaveLength(1);
     expect(edited[0].text).toContain('tez orada');
+  });
+});
+
+describe('main menu', () => {
+  it('/menu sends buttons with the Mini App store on top', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(stores, sender, msg('/menu'), shop, STOREFRONT_URL);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain('Ali Market');
+    const rows = sent[0].replyMarkup && 'inline_keyboard' in sent[0].replyMarkup ? sent[0].replyMarkup.inline_keyboard : [];
+    expect(rows).toHaveLength(4);
+    expect(rows[0][0]).toMatchObject({ web_app: { url: STOREFRONT_URL } });
+    expect(rows[0][0].text).toContain('Mahsulotlarni');
+    expect(datas(sent[0].replyMarkup)).toEqual(['menu:points', 'menu:profile', 'menu:help']);
+  });
+
+  it('/start shows the menu for approved chats', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    const result = await handle(stores, sender, msg('/start'), shop, STOREFRONT_URL);
+    expect(result.action).toBe('enabled');
+    expect(datas(sent[0].replyMarkup)).toContain('menu:profile');
+  });
+
+  it('gates /menu like the catalog', async () => {
+    const pending = createMemoryTelegramStores();
+    await pending.subscriptions.save({ chatId: CHAT_ID, subjectId: `pilot-phone:${PHONE}`, role: 'CLIENT', phone: PHONE, locale: 'uz', active: true, linkedAt: NOW.toISOString() });
+    await pending.applications.save({ chatId: CHAT_ID, phone: PHONE, name: 'A', company: 'C', address: 'M', status: 'pending', locale: 'uz', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() });
+    const { shop } = makeShop();
+    const { sender, sent } = makeSender();
+    await handle(pending, sender, msg('/menyu'), shop);
+    expect(sent[0].text).toContain('ko‘rib chiqilmoqda');
+  });
+
+  it('navigates points/profile/help and back without any state', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, edited } = makeSender();
+    await handle(stores, sender, msg('/menu'), shop, STOREFRONT_URL);
+
+    await handle(stores, sender, cb('menu:points'), shop, STOREFRONT_URL);
+    expect(edited[0].text).toContain('Sodiqlik darajalari');
+    expect(edited[0].text).toContain('Bepul yetkazish');
+    expect(datas(edited[0].replyMarkup)).toEqual(['menu:main']);
+
+    await handle(stores, sender, cb('menu:profile'), shop);
+    expect(edited[1].text).toContain('Ali Market');
+    expect(edited[1].text).toContain('Tasdiqlangan');
+
+    await handle(stores, sender, cb('menu:help'), shop);
+    expect(edited[2].text).toContain('/menu');
+
+    await handle(stores, sender, cb('menu:main'), shop, STOREFRONT_URL);
+    expect(edited[3].text).toContain('Asosiy menyu');
+    expect(await stores.shop.get(CHAT_ID)).toBeNull();
+  });
+
+  it('rejects foreign and unapproved menu presses', async () => {
+    const stores = createMemoryTelegramStores();
+    await seedApproved(stores);
+    const { shop } = makeShop();
+    const { sender, answered, edited } = makeSender();
+    await handle(stores, sender, cb('menu:points', { fromId: 4242, chatId: -100, messageId: 99 }), shop);
+    expect(answered[0].text).toContain('shaxsiy');
+    expect(edited).toHaveLength(0);
+
+    const empty = createMemoryTelegramStores();
+    const { sender: sender2, answered: answered2 } = makeSender();
+    await handle(empty, sender2, cb('menu:points'), shop);
+    expect(answered2[0].text).toContain('/start');
+  });
+
+  it('attaches the menu to the approval notification', async () => {
+    const stores = createMemoryTelegramStores();
+    await stores.subscriptions.save({ chatId: CHAT_ID, subjectId: `pilot-phone:${PHONE}`, role: 'CLIENT', phone: PHONE, locale: 'uz', active: true, linkedAt: NOW.toISOString() });
+    await stores.applications.save({ chatId: CHAT_ID, phone: PHONE, name: 'Ali', company: 'Ali Market', address: 'M', status: 'pending', locale: 'uz', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() });
+    const { sender, sent } = makeSender();
+    const result = await decideApplication(stores, sender, CHAT_ID, 'approved', undefined, NOW, { storefrontUrl: STOREFRONT_URL });
+    expect(result.ok).toBe(true);
+    const rows = sent[0].replyMarkup && 'inline_keyboard' in sent[0].replyMarkup ? sent[0].replyMarkup.inline_keyboard : [];
+    expect(rows[0][0]).toMatchObject({ web_app: { url: STOREFRONT_URL } });
+    expect(datas(sent[0].replyMarkup)).toContain('menu:points');
   });
 });
 

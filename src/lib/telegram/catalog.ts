@@ -150,11 +150,11 @@ function buildStaleToast(locale: TelegramLocale): string {
   return t(locale, 'Eskirgan tugma — /katalog ni qayta bosing.', 'Кнопка устарела — нажмите /katalog заново.');
 }
 
-function buildPrivateOnlyToast(locale: TelegramLocale): string {
+export function buildPrivateOnlyToast(locale: TelegramLocale): string {
   return t(locale, 'Faqat shaxsiy chatda ishlaydi.', 'Работает только в личном чате.');
 }
 
-function buildDeniedToast(locale: TelegramLocale): string {
+export function buildDeniedToast(locale: TelegramLocale): string {
   return t(locale, 'Avval ro‘yxatdan o‘ting: /start', 'Сначала зарегистрируйтесь: /start');
 }
 
@@ -427,7 +427,8 @@ function shopLocale(locale: TelegramLocale): ShopFlowLocale {
   return locale === 'ru' ? 'ru' : 'uz';
 }
 
-async function answerToast(sender: TelegramSender, queryId: string, text?: string): Promise<void> {
+/** Shared callback answer: always clears the spinner, toasts when text given. */
+export async function answerCallbackToast(sender: TelegramSender, queryId: string, text?: string): Promise<void> {
   try {
     await sender.answerCallbackQuery(queryId, text?.trim() ? { text: toastTooLong(text) } : {});
   } catch {
@@ -435,7 +436,8 @@ async function answerToast(sender: TelegramSender, queryId: string, text?: strin
   }
 }
 
-async function editScreen(
+/** Shared in-place screen redraw (catalog + menu); false when Telegram rejects the edit. */
+export async function editBotScreen(
   sender: TelegramSender,
   chatId: number,
   messageId: number,
@@ -496,7 +498,7 @@ async function renderCategories(
   state: TelegramShopState,
 ): Promise<void> {
   if (!context.shop) {
-    await editScreen(context.sender, chatId, messageId, buildCatalogSoonMessage(locale), EMPTY_KEYBOARD);
+    await editBotScreen(context.sender, chatId, messageId, buildCatalogSoonMessage(locale), EMPTY_KEYBOARD);
     return;
   }
   let categories = state.categories;
@@ -506,10 +508,10 @@ async function renderCategories(
     await context.stores.shop.save({ ...state, step: 'browsing', categories, categorySlug: undefined, categoryName: undefined, products: undefined, selection: undefined, deliveryMethod: undefined, address: undefined, updatedAt: context.now.toISOString() });
   }
   if (categories.length === 0) {
-    await editScreen(context.sender, chatId, messageId, buildCategoriesEmptyMessage(locale), EMPTY_KEYBOARD);
+    await editBotScreen(context.sender, chatId, messageId, buildCategoriesEmptyMessage(locale), EMPTY_KEYBOARD);
     return;
   }
-  await editScreen(context.sender, chatId, messageId, buildCategoriesMessage(locale, categories.length), categoriesKeyboard(locale, categories));
+  await editBotScreen(context.sender, chatId, messageId, buildCategoriesMessage(locale, categories.length), categoriesKeyboard(locale, categories));
 }
 
 async function renderList(
@@ -543,11 +545,11 @@ async function renderList(
     updatedAt: context.now.toISOString(),
   });
   if (products.length === 0) {
-    await editScreen(context.sender, chatId, messageId, buildCategoryEmptyMessage(locale, input.categoryName), backToCatalogKeyboard(locale));
+    await editBotScreen(context.sender, chatId, messageId, buildCategoryEmptyMessage(locale, input.categoryName), backToCatalogKeyboard(locale));
     return;
   }
   const saved = (await context.stores.shop.get(chatId)) ?? state;
-  await editScreen(
+  await editBotScreen(
     context.sender,
     chatId,
     messageId,
@@ -567,7 +569,7 @@ async function renderDetail(
   if (!context.shop) return null;
   const product = await context.shop.product(productId, shopLocale(locale));
   await context.stores.shop.save({ ...state, viewedProductId: product.id, updatedAt: context.now.toISOString() });
-  await editScreen(context.sender, chatId, messageId, buildProductMessage(locale, product), detailKeyboard(locale, product));
+  await editBotScreen(context.sender, chatId, messageId, buildProductMessage(locale, product), detailKeyboard(locale, product));
   return product;
 }
 
@@ -580,7 +582,7 @@ async function renderQty(
 ): Promise<void> {
   if (!context.shop || !state.selection) return;
   const product = await context.shop.product(state.selection.productId, shopLocale(locale));
-  await editScreen(
+  await editBotScreen(
     context.sender,
     chatId,
     messageId,
@@ -599,17 +601,17 @@ export async function handleShopCallback(
   // Catalog buttons only work for the private-chat owner: in a private chat
   // the presser always equals the chat, anywhere else the press is foreign.
   if (query.fromId !== query.chatId) {
-    await answerToast(context.sender, query.id, buildPrivateOnlyToast(locale));
+    await answerCallbackToast(context.sender, query.id, buildPrivateOnlyToast(locale));
     return 'shop-callback';
   }
   const access = await getShopAccess(context.stores, query.chatId);
   if (!access.allowed) {
-    await answerToast(context.sender, query.id, buildDeniedToast(locale));
+    await answerCallbackToast(context.sender, query.id, buildDeniedToast(locale));
     return 'shop-callback';
   }
   if (!context.shop) {
-    await answerToast(context.sender, query.id);
-    await editScreen(context.sender, query.chatId, query.messageId, buildCatalogSoonMessage(locale), EMPTY_KEYBOARD);
+    await answerCallbackToast(context.sender, query.id);
+    await editBotScreen(context.sender, query.chatId, query.messageId, buildCatalogSoonMessage(locale), EMPTY_KEYBOARD);
     return 'shop-callback';
   }
 
@@ -618,14 +620,14 @@ export async function handleShopCallback(
     await routeShopCallback(context, query, locale, parts, access.application);
   } catch (error) {
     context.logger.warn(`telegram.shop callback failed: ${error instanceof Error ? error.message : 'unknown error'}`);
-    await answerToast(context.sender, query.id, t(locale, 'Xatolik, qayta urinib ko‘ring.', 'Ошибка, попробуйте ещё раз.'));
+    await answerCallbackToast(context.sender, query.id, t(locale, 'Xatolik, qayta urinib ko‘ring.', 'Ошибка, попробуйте ещё раз.'));
     return 'shop-callback';
   }
   return 'shop-callback';
 }
 
 async function stale(context: ShopContext, query: TelegramIncomingCallbackQuery, locale: TelegramLocale): Promise<void> {
-  await answerToast(context.sender, query.id, buildStaleToast(locale));
+  await answerCallbackToast(context.sender, query.id, buildStaleToast(locale));
 }
 
 async function routeShopCallback(
@@ -640,7 +642,7 @@ async function routeShopCallback(
   const state = await context.stores.shop.get(chatId);
 
   if (action === 'cats') {
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     const base: TelegramShopState = state ?? { chatId, step: 'browsing', page: 1, total: 0, pageSize: SHOP_PAGE_SIZE, updatedAt: context.now.toISOString() };
     await renderCategories(context, chatId, query.messageId, locale, base);
     return;
@@ -658,7 +660,7 @@ async function routeShopCallback(
       await stale(context, query, locale);
       return;
     }
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await renderList(context, chatId, query.messageId, locale, state, { categorySlug: category.slug, categoryName: category.name, page: 1 });
     return;
   }
@@ -669,7 +671,7 @@ async function routeShopCallback(
       await stale(context, query, locale);
       return;
     }
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await renderList(context, chatId, query.messageId, locale, state, { categorySlug: state.categorySlug, categoryName: state.categoryName, page });
     return;
   }
@@ -681,7 +683,7 @@ async function routeShopCallback(
       await stale(context, query, locale);
       return;
     }
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await renderDetail(context, chatId, query.messageId, locale, state, ref.id);
     return;
   }
@@ -696,7 +698,7 @@ async function routeShopCallback(
     }
     const product = await context.shop.product(productId, shopLocale(locale));
     if (!product.inStock) {
-      await answerToast(context.sender, query.id, t(locale, 'Mahsulot mavjud emas.', 'Товара нет в наличии.'));
+      await answerCallbackToast(context.sender, query.id, t(locale, 'Mahsulot mavjud emas.', 'Товара нет в наличии.'));
       await renderDetail(context, chatId, query.messageId, locale, state, productId);
       return;
     }
@@ -704,7 +706,7 @@ async function routeShopCallback(
       const index = parseIndex(parts[2]);
       const variant = index !== null ? product.variants[index] : undefined;
       if (!variant || !variant.inStock) {
-        await answerToast(context.sender, query.id, t(locale, 'Bu variant mavjud emas.', 'Этот вариант недоступен.'));
+        await answerCallbackToast(context.sender, query.id, t(locale, 'Bu variant mavjud emas.', 'Этот вариант недоступен.'));
         await renderDetail(context, chatId, query.messageId, locale, state, productId);
         return;
       }
@@ -726,7 +728,7 @@ async function routeShopCallback(
         updatedAt: context.now.toISOString(),
       });
     }
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     const saved = (await context.stores.shop.get(chatId)) ?? state;
     await renderQty(context, chatId, query.messageId, locale, saved);
     return;
@@ -745,13 +747,13 @@ async function routeShopCallback(
     if (context.shop) {
       const product = await context.shop.product(state.selection.productId, shopLocale(locale));
       if (product.moq !== null && qty < product.moq) {
-        await answerToast(context.sender, query.id, buildQtyBelowMoqMessage(locale, product.moq, product.unit));
+        await answerCallbackToast(context.sender, query.id, buildQtyBelowMoqMessage(locale, product.moq, product.unit));
         return;
       }
     }
     await context.stores.shop.save({ ...state, step: 'browsing', selection: { ...state.selection, quantity: qty }, updatedAt: context.now.toISOString() });
-    await answerToast(context.sender, query.id);
-    await editScreen(context.sender, chatId, query.messageId, buildDeliveryMessage(locale), deliveryKeyboard(locale));
+    await answerCallbackToast(context.sender, query.id);
+    await editBotScreen(context.sender, chatId, query.messageId, buildDeliveryMessage(locale), deliveryKeyboard(locale));
     return;
   }
 
@@ -761,7 +763,7 @@ async function routeShopCallback(
       return;
     }
     await context.stores.shop.save({ ...state, step: 'awaiting-qty', updatedAt: context.now.toISOString() });
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await context.sender.sendMessage(chatId, t(locale, '🔢 Miqdorni yozing (1–999):', '🔢 Напишите количество (1–999):'));
     return;
   }
@@ -773,7 +775,7 @@ async function routeShopCallback(
       return;
     }
     await context.stores.shop.save({ ...state, step: 'awaiting-address', deliveryMethod: method, updatedAt: context.now.toISOString() });
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await context.sender.sendMessage(chatId, buildAddressMessage(locale, { method, hasRegistered: !!application?.address.trim() }), {
       replyMarkup: addressKeyboard(locale, { method, hasRegistered: !!application?.address.trim() }),
     });
@@ -795,7 +797,7 @@ async function routeShopCallback(
       await stale(context, query, locale);
       return;
     }
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     await advanceToConfirm(context, chatId, query.messageId, locale, state, application, address);
     return;
   }
@@ -807,13 +809,13 @@ async function routeShopCallback(
 
   if (action === 'no') {
     await context.stores.shop.clear(chatId);
-    await answerToast(context.sender, query.id);
-    await editScreen(context.sender, chatId, query.messageId, buildOrderCancelledMessage(locale), EMPTY_KEYBOARD);
+    await answerCallbackToast(context.sender, query.id);
+    await editBotScreen(context.sender, chatId, query.messageId, buildOrderCancelledMessage(locale), EMPTY_KEYBOARD);
     return;
   }
 
   if (action === 'back') {
-    await answerToast(context.sender, query.id);
+    await answerCallbackToast(context.sender, query.id);
     const where = parts[2];
     if (where === 'cats') {
       await renderCategories(context, chatId, query.messageId, locale, state);
@@ -833,14 +835,14 @@ async function routeShopCallback(
       return;
     }
     if (where === 'del' && state.selection) {
-      await editScreen(context.sender, chatId, query.messageId, buildDeliveryMessage(locale), deliveryKeyboard(locale));
+      await editBotScreen(context.sender, chatId, query.messageId, buildDeliveryMessage(locale), deliveryKeyboard(locale));
       return;
     }
     await stale(context, query, locale);
     return;
   }
 
-  await answerToast(context.sender, query.id, t(locale, 'Noma’lum amal.', 'Неизвестное действие.'));
+  await answerCallbackToast(context.sender, query.id, t(locale, 'Noma’lum amal.', 'Неизвестное действие.'));
 }
 
 async function advanceToConfirm(
@@ -860,7 +862,7 @@ async function advanceToConfirm(
   const name = application?.name ?? state.customerName;
   if (!phone) {
     const text = buildNoPhoneMessage(locale);
-    if (messageId !== null) await editScreen(context.sender, chatId, messageId, text, EMPTY_KEYBOARD);
+    if (messageId !== null) await editBotScreen(context.sender, chatId, messageId, text, EMPTY_KEYBOARD);
     else await context.sender.sendMessage(chatId, text);
     return;
   }
@@ -900,11 +902,11 @@ async function placeOrder(
 ): Promise<void> {
   const chatId = query.chatId;
   if (state.step === 'placed') {
-    await answerToast(context.sender, query.id, t(locale, 'Buyurtma allaqachon yuborilgan ✅', 'Заказ уже отправлен ✅'));
+    await answerCallbackToast(context.sender, query.id, t(locale, 'Buyurtma allaqachon yuborilgan ✅', 'Заказ уже отправлен ✅'));
     return;
   }
   if (state.step === 'placing') {
-    await answerToast(context.sender, query.id, t(locale, 'Buyurtma yuborilmoqda…', 'Заказ отправляется…'));
+    await answerCallbackToast(context.sender, query.id, t(locale, 'Buyurtma yuborilmoqda…', 'Заказ отправляется…'));
     return;
   }
   const selection = state.selection;
@@ -923,7 +925,7 @@ async function placeOrder(
   // Single-order guard: the flag is saved BEFORE the network call, so a
   // double-press always observes `placing` and places exactly one order.
   await context.stores.shop.save({ ...state, step: 'placing', updatedAt: context.now.toISOString() });
-  await answerToast(context.sender, query.id, t(locale, 'Buyurtma yuborilmoqda…', 'Заказ отправляется…'));
+  await answerCallbackToast(context.sender, query.id, t(locale, 'Buyurtma yuborilmoqda…', 'Заказ отправляется…'));
 
   const orderBody: ShopFlowOrderRequest = {
     customer: { name: name.trim(), phone },
@@ -935,7 +937,7 @@ async function placeOrder(
   try {
     const result = await context.shop.createOrder(orderBody);
     await context.stores.shop.save({ ...state, step: 'placed', orderId: result.orderId, orderMessage: result.message, updatedAt: context.now.toISOString() });
-    await editScreen(context.sender, chatId, query.messageId, buildOrderSuccessMessage(locale, result.message), backToCatalogKeyboard(locale));
+    await editBotScreen(context.sender, chatId, query.messageId, buildOrderSuccessMessage(locale, result.message), backToCatalogKeyboard(locale));
     context.logger.info(`telegram.shop order placed for chat ${chatId}: ${result.orderId}`);
     await notifyAdminOfOrder(context, { application, name: name.trim(), phone, selection, method, address: state.address, orderMessage: result.message });
   } catch (error) {
@@ -947,7 +949,7 @@ async function placeOrder(
       context.logger.warn(`telegram.shop order failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     }
     const detail = error instanceof ShopFlowApiError && (error.options.failure === 'conflict' || error.options.failure === 'validation') ? error.message : undefined;
-    await editScreen(context.sender, chatId, query.messageId, buildOrderFailedMessage(locale, detail), retryKeyboard(locale));
+    await editBotScreen(context.sender, chatId, query.messageId, buildOrderFailedMessage(locale, detail), retryKeyboard(locale));
   }
 }
 

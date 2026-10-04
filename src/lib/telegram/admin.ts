@@ -4,6 +4,7 @@ import {
   buildApplicationApprovedMessage,
   buildApplicationRejectedMessage,
 } from './messages';
+import { buildMainMenuKeyboard } from './menu';
 import type { TelegramSender } from './dispatcher';
 import type { TelegramStores } from './stores';
 import type { TelegramChatId, TelegramRegistrationApplication } from './types';
@@ -29,6 +30,7 @@ export async function decideApplication(
   decision: AdminDecision,
   reason: string | undefined,
   now: Date,
+  options: { storefrontUrl?: string | null } = {},
 ): Promise<DecideApplicationResult> {
   const application = await stores.applications.getByChatId(chatId);
   if (!application) return { ok: false, error: 'not-found' };
@@ -55,11 +57,13 @@ export async function decideApplication(
   let notified = false;
   let notifyError: string | null = null;
   try {
-    const text =
-      decision === 'approved'
-        ? buildApplicationApprovedMessage(application.locale, application.company)
-        : buildApplicationRejectedMessage(application.locale, reason || undefined);
-    await sender.sendMessage(chatId, text);
+    if (decision === 'approved') {
+      await sender.sendMessage(chatId, buildApplicationApprovedMessage(application.locale, application.company), {
+        replyMarkup: buildMainMenuKeyboard(application.locale, options.storefrontUrl ?? null),
+      });
+    } else {
+      await sender.sendMessage(chatId, buildApplicationRejectedMessage(application.locale, reason || undefined));
+    }
     notified = true;
   } catch (error) {
     notifyError = error instanceof Error ? error.message : 'unknown error';

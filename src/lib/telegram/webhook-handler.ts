@@ -5,11 +5,11 @@ import { IntegrationError } from '@/lib/providers/errors';
 import type { ShopFlowPromotion } from '@/lib/shopflow/types';
 import { decideApplication } from './admin';
 import { beginCatalog, getShopAccess, handleShopCallback, handleShopText, type CatalogBackend, type ShopContext } from './catalog';
+import { handleMenuCallback, sendMainMenu } from './menu';
 import {
   buildAdminDecidedMessage,
   buildApplicationPendingMessage,
   buildApplicationRejectedMessage,
-  buildApprovedMenuMessage,
   buildHelpMessage,
   buildInvalidCodeMessage,
   buildLinkSuccessMessage,
@@ -243,7 +243,7 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
             return { action: 'awaiting-name', chatId, replied: true };
           }
           if (application?.status === 'approved' && !existing.customerId) {
-            await input.sender.sendMessage(chatId, buildApprovedMenuMessage(locale, application.company));
+            await sendMainMenu(shopContext, chatId, locale, application.company);
             return { action: 'enabled', chatId, replied: true };
           }
           if (existing.phone && !existing.customerId) {
@@ -342,6 +342,27 @@ export async function handleTelegramUpdate(input: WebhookHandleInput): Promise<W
         const pilotAction = await beginPilotOnboarding(pilot, chatId, locale);
         return { action: pilotAction, chatId, replied: true };
       }
+      case 'menu': {
+        const access = await getShopAccess(input.stores, chatId);
+        if (access.allowed) {
+          await sendMainMenu(shopContext, chatId, locale, access.application?.company ?? null);
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (access.reason === 'pending') {
+          await input.sender.sendMessage(chatId, buildApplicationPendingMessage(locale, access.application?.company ?? ''));
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (access.reason === 'rejected') {
+          await input.sender.sendMessage(chatId, buildApplicationRejectedMessage(locale));
+          return { action: 'catalog', chatId, replied: true };
+        }
+        if (onboarding) {
+          const action = await beginPhoneOnboarding(onboarding, chatId, locale);
+          return { action, chatId, replied: true };
+        }
+        const menuPilotAction = await beginPilotOnboarding(pilot, chatId, locale);
+        return { action: menuPilotAction, chatId, replied: true };
+      }
       default: {
         if (existing) {
           await input.sender.sendMessage(chatId, buildUnknownCommandMessage(locale));
@@ -381,17 +402,19 @@ async function handleCallbackQuery(
   now: Date,
   logger: TelegramClientLogger,
 ): Promise<WebhookHandleResult> {
-  // Catalog/order buttons (`sf:*`) are served for the private-chat owner;
-  // admin review buttons (`app:*`) follow below with their own guard.
-  if (query.data === 'sf:' || query.data.startsWith('sf:')) {
+  // Catalog/order buttons (`sf:*`) and main-menu buttons (`menu:*`) are
+  // served for the private-chat owner; admin review buttons (`app:*`) follow
+  // below with their own guard.
+  if (query.data === 'sf:' || query.data.startsWith('sf:') || query.data === 'menu:' || query.data.startsWith('menu:')) {
     try {
       const subscription = await input.stores.subscriptions.getByChatId(query.chatId);
       const locale: TelegramLocale = subscription?.locale === 'ru' ? 'ru' : 'uz';
-      await handleShopCallback(
-        { stores: input.stores, sender: input.sender, shop: input.shop ?? null, storefrontUrl: input.storefrontUrl ?? null, adminChatId: input.adminChatId ?? null, now, logger },
-        query,
-        locale,
-      );
+      const shopContext: ShopContext = { stores: input.stores, sender: input.sender, shop: input.shop ?? null, storefrontUrl: input.storefrontUrl ?? null, adminChatId: input.adminChatId ?? null, now, logger };
+      if (query.data === 'menu:' || query.data.startsWith('menu:')) {
+        await handleMenuCallback(shopContext, query, locale);
+      } else {
+        await handleShopCallback(shopContext, query, locale);
+      }
     } catch (error) {
       logger.error(`telegram.shop callback failed: ${error instanceof Error ? error.message : 'unknown error'}`);
       try {
@@ -422,7 +445,9 @@ async function handleCallbackQuery(
   const targetChatId = Number(match[2]);
   let result;
   try {
-    result = await decideApplication(input.stores, input.sender, targetChatId, decision as 'approved' | 'rejected', undefined, now);
+    result = await decideApplication(input.stores, input.sender, targetChatId, decision as 'approved' | 'rejected', undefined, now, {
+      storefrontUrl: input.storefrontUrl ?? null,
+    });
   } catch (error) {
     logger.error(`telegram.callback decision failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     try {

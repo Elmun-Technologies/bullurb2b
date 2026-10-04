@@ -1,4 +1,5 @@
 import { IntegrationError } from '@/lib/providers/errors';
+import { readShopFlowStorefrontUrl } from '@/lib/shopflow/config';
 import { decideApplication } from '@/lib/telegram/admin';
 import { TelegramBotApiClient } from '@/lib/telegram/client';
 import { requireTelegramAdminSecret, requireTelegramDeliveryConfig } from '@/lib/telegram/config';
@@ -47,7 +48,7 @@ export async function POST(request: Request, context: { params: Promise<{ chatId
   }
   let result;
   try {
-    result = await decideApplication(stores, sender, chatId, 'approved', undefined, new Date());
+    result = await decideApplication(stores, sender, chatId, 'approved', undefined, new Date(), { storefrontUrl: readShopFlowStorefrontUrl() });
   } catch (error) {
     if (error instanceof IntegrationError && error.failure === 'UNCONFIGURED') {
       return Response.json({ ok: false, error: 'storage-unconfigured' }, { status: 503 });

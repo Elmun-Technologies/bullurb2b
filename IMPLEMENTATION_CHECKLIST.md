@@ -35,7 +35,7 @@
 - [x] One-time short-lived account linking bound to verified principals only (hash-persisted codes, demo switcher never trusted).
 - [x] Authenticated scheduler endpoint + dispatcher reusing portal Friday/80%-gap/order/opportunity rules, Uzbek + Russian texts, per-chat idempotency and weekly cadence caps.
 - [x] Mock-mode refusal: demo records can never be delivered to real chats; integration reports `disabled/unconfigured` without full configuration.
-- [x] 111 automated Telegram tests (config fail-closed, secret-free responses, webhook auth, linking, phone onboarding, pilot registration + admin approval queue + in-bot review + user menu + in-bot ShopFlow catalog/ordering + Mini App storefront + upgrade path, isolation, unsubscribe, timezones, loyalty parity, idempotency, retries) and `TELEGRAM_SETUP.md` operator docs.
+- [x] 118 automated Telegram tests (config fail-closed, secret-free responses, webhook auth, linking, phone onboarding, pilot registration + admin approval queue + in-bot review + user menu + main menu buttons + in-bot ShopFlow catalog/ordering + Mini App storefront + upgrade path, isolation, unsubscribe, timezones, loyalty parity, idempotency, retries) and `TELEGRAM_SETUP.md` operator docs.
 
 ## ShopFlow Public API v1 (verified subset implemented)
 - [x] Server-only v1 client (categories, products, product, promotions, upsells, createOrder, health) with Bearer auth, locale validation, 429 retry and bounded 5xx/network backoff.
@@ -43,6 +43,7 @@
 - [x] Outbound webhook receiver with raw-body HMAC-SHA256 verification for `order.created` / `order.status_changed` / `order.paid` (acknowledge + parse; Telegram fan-out still needs mapping + durable storage).
 - [x] In-bot catalog + ordering (`/katalog` for approved chats: categories → products → variant → MOQ quantity → courier/pickup → address → confirm → `POST /orders`, admin notified; fail-closed “coming soon”, single-order guard, live promos in `/dastur`).
 - [x] Mini App storefront (`/katalog` opens `SHOPFLOW_STOREFRONT_URL` via a `web_app` button; button catalog stays as fallback; BotFather `/newapp` + Menu button; bot token never shared with ShopFlow).
+- [x] Main menu buttons (`/menu`, `/start` for approved, attached to approval: shop / points+discounts / profile / help with back navigation; stateless; commands stay as fallback).
 - [x] 20 automated ShopFlow tests (config, validation, client retries/errors, HMAC, routes) and rewritten `SHOPFLOW_INTEGRATION.md` from the verified guide.
 
 ## Verification

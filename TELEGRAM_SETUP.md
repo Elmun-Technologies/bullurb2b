@@ -105,10 +105,12 @@ the buttons — production should restrict this to listed admin user ids.
 
 ## User menu (post-registration)
 
-Approved users are no longer stuck: `/start` shows a menu, `/profil` shows
-their stored data + application status, `/dastur` lists the loyalty tiers and
-discounts (static program info; personal progress needs the live MoySklad
-adapter). All three work without any external keys.
+Approved users get a main menu of inline buttons (also on `/menu` and
+attached to the approval message): 🛒 shop (Mini App store, button-catalog
+fallback), ⭐ points + discounts (tiers + live promotions; personal balance
+needs purchase history), 👤 profile (stored data + status), ℹ️ help. The menu
+is stateless and needs no keys; `/profil`, `/dastur`, `/katalog` stay as
+command fallbacks.
 
 `/katalog` (needs ShopFlow keys, see `SHOPFLOW_INTEGRATION.md`) opens the
 Mini App store (`SHOPFLOW_STOREFRONT_URL`) inside Telegram, with a
@@ -174,8 +176,8 @@ GET /api/telegram/status ──> secret-free status for the setup UI ({ disabled
 2. Copy the bot token BotFather returns. **Treat it as a password**: server
    deployment secret only, never `NEXT_PUBLIC_*`, Git, logs or chat.
 3. Optionally `/setdescription`, `/setabouttext`, and `/setcommands`:
-   `start` (start/registration), `katalog` (products/orders), `profil`
-   (my data), `dastur` (tiers), `help`, `stop`.
+   `menu` (main menu), `start` (start/registration), `katalog`
+   (products/orders), `profil` (my data), `dastur` (tiers), `help`, `stop`.
 4. Mini App store: `/newapp` on this bot with the ShopFlow storefront URL,
    then `/mybots` → the bot → Menu Button → the same URL (label e.g.
    `🛒 Do‘kon`). Mirrors `/katalog`; never give this bot's token to
@@ -336,11 +338,12 @@ curl -s -X POST https://<portal-host>/api/cron/telegram-reminders \
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-- 111 automated Telegram tests use a fake sender + memory stores: fail-closed
+- 118 automated Telegram tests use a fake sender + memory stores: fail-closed
   config, secret-free responses, webhook auth, linking lifecycle, phone
   onboarding (contact ownership, auto-link, self-registration, ambiguous and
   failure paths), in-bot admin review (inline buttons, guards, double-press),
-  user menu (/profil, /dastur), in-bot ShopFlow catalog + ordering (/katalog,
+  user menu (/profil, /dastur), main menu buttons (/menu: shop, points,
+  profile, help), in-bot ShopFlow catalog + ordering (/katalog,
   variants, MOQ, address, confirm, single-order guard, stock/401 paths, live
   promotions), pilot registration (name/company/address/location steps,
   skip, admin approval queue + chat notifications, reject/restart), per-customer

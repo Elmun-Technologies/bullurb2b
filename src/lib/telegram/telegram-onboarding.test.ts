@@ -722,7 +722,9 @@ describe('telegram user menu', () => {
       status: 'approved', locale: 'uz', createdAt: timestamp, updatedAt: timestamp,
     });
     expect((await handle(stores, sender, textUpdate('/start'), null)).action).toBe('enabled');
-    expect(sent[sent.length - 1].text).toContain('/profil');
-    expect(sent[sent.length - 1].text).toContain('BARAKA SAVDO');
+    const last = sent[sent.length - 1];
+    expect(last.text).toContain('BARAKA SAVDO');
+    const rows = last.replyMarkup && 'inline_keyboard' in last.replyMarkup ? last.replyMarkup.inline_keyboard : [];
+    expect(rows.flat().map((button) => button.callback_data)).toContain('menu:profile');
   });
 });

@@ -85,7 +85,7 @@ export interface TelegramIncomingUpdate {
   callbackQuery?: TelegramIncomingCallbackQuery;
 }
 
-export type TelegramCommand = 'start' | 'help' | 'stop' | 'profile' | 'program' | 'catalog' | 'unknown';
+export type TelegramCommand = 'start' | 'help' | 'stop' | 'profile' | 'program' | 'catalog' | 'menu' | 'unknown';
 
 export interface ParsedTelegramCommand {
   command: TelegramCommand;

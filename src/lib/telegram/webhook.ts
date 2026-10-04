@@ -108,9 +108,9 @@ export function parseTelegramUpdate(body: unknown): TelegramIncomingUpdate | nul
 
 /**
  * Parses `/start`, `/start <payload>`, `/help`, `/stop`, `/profil`,
- * `/dastur`, `/katalog` (with optional `@botname` mention). Anything else is
- * `unknown`. A mention for a different bot is treated as unknown so group
- * chatter for other bots is ignored.
+ * `/dastur`, `/katalog`, `/menu` (with optional `@botname` mention).
+ * Anything else is `unknown`. A mention for a different bot is treated as
+ * unknown so group chatter for other bots is ignored.
  */
 export function parseTelegramCommand(text: string, botUsername: string | null): ParsedTelegramCommand {
   const rawText = text;
@@ -122,7 +122,7 @@ export function parseTelegramCommand(text: string, botUsername: string | null): 
   const payload = firstSpace === -1 ? '' : trimmed.slice(firstSpace).trim();
 
   const [commandPart, mentionPart] = commandToken.slice(1).split('@', 2);
-  const aliases: Record<string, TelegramCommand> = { start: 'start', help: 'help', stop: 'stop', profil: 'profile', dastur: 'program', katalog: 'catalog' };
+  const aliases: Record<string, TelegramCommand> = { start: 'start', help: 'help', stop: 'stop', profil: 'profile', dastur: 'program', katalog: 'catalog', menu: 'menu', menyu: 'menu' };
   const command = aliases[commandPart] ?? 'unknown';
   if (command === 'unknown') return { command, payload: '', rawText };
 

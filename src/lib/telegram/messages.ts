@@ -96,8 +96,8 @@ export function buildInvalidCodeMessage(locale: TelegramLocale): string {
 export function buildHelpMessage(locale: TelegramLocale): string {
   return truncateTelegramText(
     locale === 'ru'
-      ? 'Baraka B2B — бот.\n/start — начать / регистрация\n/katalog — товары и заказы\n/profil — мои данные и статус\n/dastur — уровни и скидки\n/stop — отписаться\n/help — это сообщение'
-      : 'Baraka B2B — bot.\n/start — boshlash / ro‘yxatdan o‘tish\n/katalog — mahsulotlar va buyurtma\n/profil — ma’lumotlarim va holat\n/dastur — darajalar va chegirmalar\n/stop — obunani o‘chirish\n/help — ushbu yordam',
+      ? 'Baraka B2B — бот.\n/menu — главное меню (кнопки)\n/start — начать / регистрация\n/katalog — товары и заказы\n/profil — мои данные и статус\n/dastur — уровни и скидки\n/stop — отписаться\n/help — это сообщение'
+      : 'Baraka B2B — bot.\n/menu — asosiy menyu (tugmalar)\n/start — boshlash / ro‘yxatdan o‘tish\n/katalog — mahsulotlar va buyurtma\n/profil — ma’lumotlarim va holat\n/dastur — darajalar va chegirmalar\n/stop — obunani o‘chirish\n/help — ushbu yordam',
   );
 }
 
@@ -297,8 +297,8 @@ export function buildApplicationPendingMessage(locale: TelegramLocale, company: 
 export function buildApplicationApprovedMessage(locale: TelegramLocale, company: string): string {
   return truncateTelegramText(
     locale === 'ru'
-      ? `Поздравляем! Ваша заявка одобрена ✅\nКомпания: ${company}\n\n🛒 /katalog — товары и заказы.\n/profil — мои данные, /dastur — скидки, /help — помощь.`
-      : `Tabriklaymiz! Arizangiz tasdiqlandi ✅\nKompaniya: ${company}\n\n🛒 /katalog — mahsulotlar va buyurtma.\n/profil — ma’lumotlarim, /dastur — chegirmalar, /help — yordam.`,
+      ? `Поздравляем! Ваша заявка одобрена ✅\nКомпания: ${company}\n\n🛒 Магазин, ⭐ баллы и 👤 профиль — на кнопках ниже.\nМеню: /menu, помощь: /help.`
+      : `Tabriklaymiz! Arizangiz tasdiqlandi ✅\nKompaniya: ${company}\n\n🛒 Do‘kon, ⭐ bal va 👤 profil — pastdagi tugmalarda.\nMenyu: /menu, yordam: /help.`,
   );
 }
 
@@ -370,13 +370,5 @@ export function buildProgramMessage(
     locale === 'ru'
       ? `🏆 Уровни лояльности\n\n${lines.join('\n')}${promoBlock}\n\n🧪 Тестовый режим: личный прогресс появится после подключения данных.`
       : `🏆 Sodiqlik darajalari\n\n${lines.join('\n')}${promoBlock}\n\n🧪 Test rejimi: shaxsiy progress ma’lumotlar ulangach chiqadi.`,
-  );
-}
-
-export function buildApprovedMenuMessage(locale: TelegramLocale, company: string): string {
-  return truncateTelegramText(
-    locale === 'ru'
-      ? `С возвращением, ${company}! ✅\n\n/katalog — товары и заказы\n/profil — мои данные\n/dastur — уровни и скидки\n/help — помощь\n/stop — отписаться`
-      : `Xush kelibsiz, ${company}! ✅\n\n/katalog — mahsulotlar va buyurtma\n/profil — ma’lumotlarim\n/dastur — darajalar va chegirmalar\n/help — yordam\n/stop — obunani o‘chirish`,
   );
 }
