@@ -48,12 +48,12 @@ export default async function ClientDetailsPage(context: { params: Promise<{ id:
         {orders.length === 0 ? (
           <p className="muted-text">Bu mijoz hali bot orqali buyurtma bermagan.</p>
         ) : (
-          <div className="near-client-list">
+          <div className="live-list">
             {orders.map((order) => (
-              <div className="near-client-row" key={order.orderId}>
+              <div className="live-row" key={order.orderId}>
                 <span className="near-client-avatar"><ShoppingBag size={15} /></span>
                 <span className="near-client-name"><b>{order.productName}{order.variantName ? ` (${order.variantName})` : ''} × {order.quantity}</b><small>{order.orderMessage} · {order.method === 'courier' ? 'Kuryer' : 'Olib ketish'}</small></span>
-                <span className="near-client-remaining">{order.createdAt.slice(0, 10)}</span>
+                <span className="live-meta">{order.createdAt.slice(0, 10)}</span>
               </div>
             ))}
           </div>

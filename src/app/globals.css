@@ -1118,3 +1118,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .admin-login-form input[type="password"] { height: 40px; padding: 0 12px; border: 1px solid #e3e9e9; border-radius: 7px; font-size: 13px; color: #2b393e; outline: 0; }
 .admin-login-form input[type="password"]:focus { border-color: #bfd5ca; }
 .admin-login-error { margin: 0; padding: 9px 11px; border-radius: 7px; background: #fdf1ec; color: #a2543f; font-size: 11px; text-align: center; }
+.live-list { display: flex; flex-direction: column; }
+.live-row { display: grid; grid-template-columns: 29px minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 52px; padding: 7px 0; border-top: 1px solid #eff2f2; text-decoration: none; color: inherit; }
+.live-row:first-child { border-top: 0; }
+.live-row.has-arrow { grid-template-columns: 29px minmax(0,1fr) auto 18px; }
+a.live-row:hover .live-arrow { color: #2b6654; }
+.live-meta { color: #3f745b; font-size: 9px; font-weight: 650; white-space: nowrap; text-align: right; }
+.live-meta small { display: block; margin-top: 2px; color: #99a5a1; font-size: 8px; font-weight: 450; }
+.live-arrow { color: #aab3b3; }
+@media (max-width: 640px) {
+  .live-row { grid-template-columns: 27px minmax(0,1fr); row-gap: 2px; }
+  .live-row .live-meta { grid-column: 2; text-align: left; }
+  .live-row.has-arrow { grid-template-columns: 27px minmax(0,1fr) 18px; }
+  .live-row.has-arrow .live-arrow { grid-column: 3; grid-row: 1 / 3; }
+}

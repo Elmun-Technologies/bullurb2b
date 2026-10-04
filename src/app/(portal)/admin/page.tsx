@@ -90,13 +90,13 @@ export default async function AdminDashboardPage() {
         {telegram.pending.length === 0 ? (
           <p className="muted-text">Kutilayotgan ariza yo‘q. Yangi ariza botda <b>/start</b> orqali keladi.</p>
         ) : (
-          <div className="near-client-list">
+          <div className="live-list">
             {telegram.pending.slice(0, 5).map((item) => (
-              <Link href="/admin/telegram" className="near-client-row" key={item.chatId}>
+              <Link href="/admin/telegram" className="live-row has-arrow" key={item.chatId}>
                 <span className="near-client-avatar">{item.company.slice(0, 1)}</span>
                 <span className="near-client-name"><b>{item.company}</b><small>{item.name} · {item.phone}</small></span>
-                <span className="near-client-remaining">{formatDateTime(item.createdAt)}</span>
-                <ArrowRight size={15} className="near-client-arrow" />
+                <span className="live-meta">{formatDateTime(item.createdAt)}</span>
+                <ArrowRight size={15} className="live-arrow" />
               </Link>
             ))}
           </div>
@@ -108,12 +108,12 @@ export default async function AdminDashboardPage() {
         {telegram.orders.length === 0 ? (
           <p className="muted-text">Hali bot buyurtmasi yo‘q. Mijoz <b>/katalog</b> orqali buyurtma beradi.</p>
         ) : (
-          <div className="near-client-list">
+          <div className="live-list">
             {telegram.orders.slice(0, 5).map((order) => (
-              <div className="near-client-row" key={order.orderId}>
+              <div className="live-row" key={order.orderId}>
                 <span className="near-client-avatar"><ShoppingBag size={15} /></span>
                 <span className="near-client-name"><b>{order.productName}{order.variantName ? ` (${order.variantName})` : ''} × {order.quantity}</b><small>{order.company} · {order.method === 'courier' ? 'Kuryer' : 'Olib ketish'}</small></span>
-                <span className="near-client-remaining">{formatDateTime(order.createdAt)}</span>
+                <span className="live-meta">{formatDateTime(order.createdAt)}</span>
               </div>
             ))}
           </div>
@@ -127,12 +127,12 @@ export default async function AdminDashboardPage() {
         {storeOrders.length === 0 ? (
           <p className="muted-text">Hali do‘kon buyurtmasi kelmadi. ShopFlow admin → outbound webhook: bu server URLi + <b>order.created</b> + secret (<b>SHOPFLOW_WEBHOOK_SECRET</b>). Yordam: <b>SHOPFLOW_INTEGRATION.md</b>.</p>
         ) : (
-          <div className="near-client-list">
+          <div className="live-list">
             {storeOrders.map((item, index) => (
-              <div className="near-client-row" key={`${item.orderId}-${index}`}>
+              <div className="live-row" key={`${item.orderId}-${index}`}>
                 <span className="near-client-avatar"><ShoppingBag size={15} /></span>
                 <span className="near-client-name"><b>{item.code ?? item.orderId}</b><small>{item.event} · {item.status ?? '—'}{item.source ? ` · ${item.source}` : ''}</small></span>
-                <span className="near-client-remaining">{item.total !== undefined ? item.total.toLocaleString('uz-UZ') : '—'}</span>
+                <span className="live-meta">{item.total !== undefined ? item.total.toLocaleString('uz-UZ') : '—'}</span>
               </div>
             ))}
           </div>
