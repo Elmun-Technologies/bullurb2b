@@ -353,3 +353,19 @@ npm run typecheck && npm run lint && npm test && npm run build
   clients cannot receive another company's data; unsubscribe is one command.
 - **Message length** is capped at the Bot API 4096-character limit; texts are
   plain (no `parse_mode`), so names can never inject formatting.
+
+## 8. Troubleshooting (learned during pilot setup)
+
+- **`chat not found` on send**: the bot is not a member of that chat. Add the
+  bot to the admin group first, then re-test with a direct `sendMessage` call
+  before touching app code.
+- **`404 Not Found` from Bot API**: the token in the URL is wrong (often the
+  literal placeholder `BOT_TOKEN`). Get the real token from @BotFather
+  (`/token` → pick the bot).
+- **`secret token contains illegal characters`**: the webhook secret must use
+  only `A-Z a-z 0-9 _ -`. Generate with `openssl rand -hex 32` (hex is always
+  legal); base64 secrets (`+ / =`) are rejected by Telegram.
+- **Application invisible in panel after deploy/secrets change**: pilot stores
+  are in-memory — any machine restart wipes them. Re-register after deploy.
+- **Buttons do nothing**: the webhook was registered without `callback_query`
+  in `allowed_updates`. Re-run `setWebhook` with `["message","callback_query"]`.
