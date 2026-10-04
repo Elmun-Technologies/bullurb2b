@@ -70,7 +70,7 @@ export default async function AdminMarketingPage() {
 
   const byStage = new Map<FollowupStage, number>();
   for (const item of classified) byStage.set(item.stage, (byStage.get(item.stage) ?? 0) + 1);
-  const lastSent = recent[0]?.sentAt.slice(0, 16).replace('T', ' ') ?? '—';
+  const lastSent = recent[0]?.sentAt.slice(5, 16).replace('T', ' ') ?? '—';
 
   return <>
     <PageHeading

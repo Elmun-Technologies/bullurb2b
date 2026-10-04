@@ -1139,3 +1139,10 @@ a.live-row:hover .live-arrow { color: #2b6654; }
 .sample-box { margin-top: 14px; padding: 11px 13px; border: 1px dashed #cfddd8; border-radius: 8px; background: #f7faf8; }
 .sample-label { color: #667476; font-size: 8px; font-weight: 700; letter-spacing: .4px; }
 .sample-box p { margin: 6px 0 0; color: #455458; font-size: 11px; line-height: 1.55; white-space: pre-line; }
+.input { height: 38px; padding: 0 12px; border: 1px solid #e3e9e9; border-radius: 7px; color: #2b393e; background: #fff; font-size: 12px; outline: 0; }
+.input:focus { border-color: #bfd5ca; }
+.input::placeholder { color: #a7b1b1; }
+.breadcrumbs { min-width: 0; }
+.breadcrumbs strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.client-table tbody td:nth-child(4) { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 380px) { .admin-badge { display: none; } }
