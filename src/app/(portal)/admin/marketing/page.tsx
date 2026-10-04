@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { BellRing, Clock3, Megaphone, Send } from 'lucide-react';
 import { PageHeading, StatCard } from '@/components/ui';
 import { FOLLOWUP_POLICIES, buildFollowupMessage, checkEligibility, classifyChat, collectFollowupData, type ClassifiedChat } from '@/lib/telegram/followups';
@@ -46,6 +47,7 @@ function policyText(stage: FollowupStage): string {
 
 export default async function AdminMarketingPage() {
   const now = new Date();
+  const host = (await headers()).get('host') ?? '<portal-host>';
   let available = true;
   const classified: ClassifiedChat[] = [];
   let eligible = 0;
@@ -121,7 +123,7 @@ export default async function AdminMarketingPage() {
     <section className="surface">
       <div className="section-header"><div><div className="section-kicker">SOZLASH</div><h3>Avtomatik yuborish</h3></div></div>
       <p className="muted-text">Xabarlar har kuni 09:30 da avtomatik yuboriladi. Birinchi sinovni yubormasdan ko‘rish mumkin:</p>
-      <p className="telegram-code-box"><code>POST https://&lt;portal-host&gt;/api/cron/telegram-followups?dryRun=1</code></p>
+      <p className="telegram-code-box"><code>POST https://{host}/api/cron/telegram-followups?dryRun=1</code></p>
     </section>
   </>;
 }

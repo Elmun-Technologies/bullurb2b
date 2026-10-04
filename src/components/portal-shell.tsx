@@ -66,7 +66,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     <div className="sidebar-help"><CircleHelp size={17} /><span>Yordam markazi</span><LifeBuoy size={16} className="help-right" /></div>
     {onAdminRoute
       ? <div className="profile-row"><div className="profile-avatar">AD</div><span className="profile-name"><b>Administrator</b><small>Tizim administratori</small></span></div>
-      : <div className="profile-row"><div className="profile-avatar">{isAdmin ? 'AT' : 'SK'}</div><span className="profile-name"><b>{isAdmin ? 'Azizbek Tursunov' : 'Samarqand Market'}</b><small>{isAdmin ? 'Savdo menejeri' : 'Hamkor hisobi'}</small></span><button aria-label="Profil sozlamalari" className="icon-button profile-more"><ChevronDown size={16} /></button></div>}
+      : <div className="profile-row"><div className="profile-avatar">{isAdmin ? 'AT' : 'SK'}</div><span className="profile-name"><b>{isAdmin ? 'Azizbek Tursunov' : 'Samarqand Market'}</b><small>{isAdmin ? 'Savdo menejeri' : 'Hamkor hisobi'}</small></span><button aria-label="Profil sozlamalari" className="icon-button"><ChevronDown size={16} /></button></div>}
   </>;
 
   if (isLoginRoute) {
